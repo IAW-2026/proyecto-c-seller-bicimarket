@@ -9,12 +9,127 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// ============================================
-// Base User model synced from Clerk via webhook
-// Each app should extend this with its own models
-// ============================================
+// ============================================================
+// Seller App — DB seller_db
+// Source of truth: catalog (products, price, weight), seller
+// profiles, and sales_orders (sub-orders per seller).
+// No stock field — stock is unlimited per project constraint.
+// ============================================================
+
+model SellerProfile {
+  id                   String             @id @default(cuid())
+  clerkUserId          String             @unique @map("clerk_user_id")
+  legalName            String             @map("legal_name")
+  displayName          String             @map("display_name")
+  taxId                String             @map("tax_id")
+  taxCondition         TaxCondition       @map("tax_condition")
+  bankAccountReference String             @map("bank_account_reference")
+  pickupAddress        Json               @map("pickup_address")
+  verificationStatus   VerificationStatus @default(pending_review) @map("verification_status")
+  products             Product[]
+  salesOrders          SalesOrder[]
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  @@map("seller_profiles")
+}
+
+model Product {
+  id              String           @id @default(cuid())
+  sellerProfileId String           @map("seller_profile_id")
+  sellerProfile   SellerProfile    @relation(fields: [sellerProfileId], references: [id])
+  title           String
+  description     String
+  brand           String
+  model           String
+  category        ProductCategory
+  condition       ProductCondition
+  priceCents      Int              @map("price_cents")
+  currency        String           @default("ARS")
+  weightGrams     Int              @map("weight_grams")
+  lengthCm        Int?             @map("length_cm")
+  widthCm         Int?             @map("width_cm")
+  heightCm        Int?             @map("height_cm")
+  status          ProductStatus    @default(draft)
+  images          ProductImage[]
+  salesOrderItems SalesOrderItem[]
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  deletedAt       DateTime?        @map("deleted_at")
+
+  @@index([status, category])
+  @@index([sellerProfileId])
+  @@index([brand, model])
+  @@map("products")
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String  @map("product_id")
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  position  Int
+
+  @@unique([productId, position])
+  @@map("product_images")
+}
+
+model SalesOrder {
+  id                      String                   @id @default(cuid())
+  orderId                 String                   @map("order_id")
+  orderSellerGroupId      String                   @map("order_seller_group_id")
+  sellerProfileId         String                   @map("seller_profile_id")
+  sellerProfile           SellerProfile            @relation(fields: [sellerProfileId], references: [id])
+  buyerProfileId          String                   @map("buyer_profile_id")
+  buyerClerkUserId        String                   @map("buyer_clerk_user_id")
+  paymentId               String                   @map("payment_id")
+  paymentStatus           SalesOrderPaymentStatus  @default(pending) @map("payment_status")
+  fulfillmentStatus       FulfillmentStatus        @default(pending) @map("fulfillment_status")
+  shippingStatus          SalesOrderShippingStatus @default(pending) @map("shipping_status")
+  shipmentId              String?                  @map("shipment_id")
+  itemsSubtotalCents      Int                      @map("items_subtotal_cents")
+  shippingCostCents       Int                      @map("shipping_cost_cents")
+  totalCents              Int                      @map("total_cents")
+  currency                String                   @default("ARS")
+  shippingAddressSnapshot Json                     @map("shipping_address_snapshot")
+  items                   SalesOrderItem[]
+  statusHistory           SalesOrderStatusHistory[]
+  createdAt               DateTime                 @default(now()) @map("created_at")
+  updatedAt               DateTime                 @updatedAt @map("updated_at")
+
+  @@index([sellerProfileId, fulfillmentStatus])
+  @@map("sales_orders")
+}
+
+model SalesOrderItem {
+  id                  String     @id @default(cuid())
+  salesOrderId        String     @map("sales_order_id")
+  salesOrder          SalesOrder @relation(fields: [salesOrderId], references: [id])
+  productId           String     @map("product_id")
+  product             Product    @relation(fields: [productId], references: [id])
+  productNameSnapshot String     @map("product_name_snapshot")
+  unitPriceCents      Int        @map("unit_price_cents")
+  quantity            Int
+
+  @@map("sales_order_items")
+}
+
+model SalesOrderStatusHistory {
+  id           String     @id @default(cuid())
+  salesOrderId String     @map("sales_order_id")
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id])
+  fromStatus   String     @map("from_status")
+  toStatus     String     @map("to_status")
+  source       String
+  payload      Json?
+  occurredAt   DateTime   @map("occurred_at")
+
+  @@map("sales_order_status_history")
+}
+
+// Legacy base user model (kept for Clerk webhook sync)
 model User {
-  id        String   @id // Clerk user ID
+  id        String   @id
   email     String   @unique
   firstName String?
   lastName  String?
@@ -24,15 +139,73 @@ model User {
   updatedAt DateTime @updatedAt
 }
 
+// ── Enums ──────────────────────────────────────────────────
+
+enum TaxCondition {
+  monotributo
+  responsable_inscripto
+  consumidor_final
+}
+
+enum VerificationStatus {
+  pending_review
+  verified
+  suspended
+}
+
+enum ProductCategory {
+  mtb
+  road
+  urban
+  kids
+  bmx
+  parts
+  accessories
+}
+
+enum ProductCondition {
+  new
+  used_like_new
+  used_good
+  used_fair
+}
+
+enum ProductStatus {
+  draft
+  active
+  paused
+  archived
+}
+
+enum SalesOrderPaymentStatus {
+  pending
+  paid
+  refunded
+  settled
+}
+
+enum FulfillmentStatus {
+  pending
+  accepted
+  rejected
+  preparing
+  ready_to_ship
+  handed_over
+  delivered
+  cancelled
+}
+
+enum SalesOrderShippingStatus {
+  pending
+  ready_for_pickup
+  picked_up
+  in_transit
+  out_for_delivery
+  delivered
+  returned
+}
+
 enum Role {
   USER
   ADMIN
-}
-
-model Product {
-  id          String   @id @default(cuid())
-  title       String
-  description String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 }
