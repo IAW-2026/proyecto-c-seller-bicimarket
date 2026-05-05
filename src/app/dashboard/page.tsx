@@ -1,29 +1,21 @@
 import { UserButton } from "@clerk/nextjs";
 import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { WelcomeCard } from "./welcome-card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { OrdersTab } from "./_components/orders-tab";
+import { ProductsTab } from "./_components/products-tab";
+import { SettlementsTab } from "./_components/settlements-tab";
+import { ProfileTab } from "./_components/profile-tab";
 
 export default async function DashboardPage() {
   const user = await currentUser();
-
-  if (!user) {
-    redirect("/sign-in");
-  }
+  if (!user) redirect("/sign-in");
 
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-30 border-b border-border/60 bg-card/80 backdrop-blur-md">
         <div className="container mx-auto flex items-center justify-between px-6 py-3">
-          <h1 className="font-heading text-lg font-semibold tracking-tight">
-            Marketplace
-          </h1>
+          <h1 className="font-heading text-lg font-semibold tracking-tight">BiciMarket Vendedor</h1>
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground">
               {user.firstName} {user.lastName}
@@ -33,17 +25,31 @@ export default async function DashboardPage() {
         </div>
       </header>
 
-      <main className="container mx-auto space-y-6 px-6 py-8">
-        <div>
-          <h2 className="font-heading text-2xl font-semibold tracking-tight">
-            Dashboard
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Bienvenido al marketplace. Personalizalo segun tu modulo.
-          </p>
-        </div>
+      <main className="container mx-auto px-6 py-8">
+        <Tabs defaultValue="orders">
+          <TabsList className="mb-6">
+            <TabsTrigger value="orders">Pedidos</TabsTrigger>
+            <TabsTrigger value="products">Catálogo</TabsTrigger>
+            <TabsTrigger value="settlements">Liquidaciones</TabsTrigger>
+            <TabsTrigger value="profile">Mi perfil</TabsTrigger>
+          </TabsList>
 
-        <WelcomeCard />
+          <TabsContent value="orders">
+            <OrdersTab />
+          </TabsContent>
+
+          <TabsContent value="products">
+            <ProductsTab />
+          </TabsContent>
+
+          <TabsContent value="settlements">
+            <SettlementsTab />
+          </TabsContent>
+
+          <TabsContent value="profile">
+            <ProfileTab />
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );
