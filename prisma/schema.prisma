@@ -87,6 +87,7 @@ model SalesOrder {
   fulfillmentStatus       FulfillmentStatus        @default(pending) @map("fulfillment_status")
   shippingStatus          SalesOrderShippingStatus @default(pending) @map("shipping_status")
   shipmentId              String?                  @map("shipment_id")
+  shippingQuoteId         String?                  @map("shipping_quote_id")
   itemsSubtotalCents      Int                      @map("items_subtotal_cents")
   shippingCostCents       Int                      @map("shipping_cost_cents")
   totalCents              Int                      @map("total_cents")

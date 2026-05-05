@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
     currency = "ARS",
     shipping_address_snapshot,
     payment_id,
+    shipping_quote_id, // optional — forwarded to Shipping App when creating the shipment
   } = body as Record<string, unknown>;
 
   if (!order_id || !order_seller_group_id || !buyer_profile_id || !buyer_clerk_user_id ||
@@ -87,6 +88,7 @@ export async function POST(request: NextRequest) {
       buyerClerkUserId: String(buyer_clerk_user_id),
       paymentId: String(payment_id),
       paymentStatus: "paid",
+      ...(shipping_quote_id != null ? { shippingQuoteId: String(shipping_quote_id) } : {}),
       itemsSubtotalCents: Number(items_subtotal_cents),
       shippingCostCents: Number(shipping_cost_cents),
       totalCents: Number(total_cents),

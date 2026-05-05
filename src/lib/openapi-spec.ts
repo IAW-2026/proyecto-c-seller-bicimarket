@@ -14,6 +14,7 @@ export const openapiSpec = {
     { name: "Product Images", description: "Product image management" },
     { name: "Sales Orders", description: "Sub-orders created by Payments App after payment" },
     { name: "Sales Orders — Server-to-Server", description: "Endpoints called by other apps with X-Service-Token" },
+    { name: "Settlements", description: "Seller liquidations — proxied from Payments App" },
   ],
   components: {
     securitySchemes: {
@@ -192,6 +193,7 @@ export const openapiSpec = {
             enum: ["pending", "paid", "refunded", "settled"],
           },
           shipment_id: { type: "string", nullable: true, example: "shp_01H…" },
+          shipping_quote_id: { type: "string", nullable: true, example: "qte_01H…" },
           items_subtotal_cents: { type: "integer", example: 65000000 },
           shipping_cost_cents: { type: "integer", example: 1200000 },
           total_cents: { type: "integer", example: 66200000 },
@@ -559,6 +561,7 @@ export const openapiSpec = {
                   currency: { type: "string", default: "ARS" },
                   shipping_address_snapshot: { type: "object" },
                   payment_id: { type: "string", example: "pay_01H…" },
+                  shipping_quote_id: { type: "string", description: "Optional — forwarded to Shipping App when creating the shipment", example: "qte_01H…" },
                 },
               },
             },
@@ -708,6 +711,60 @@ export const openapiSpec = {
           400: { description: "Bad request", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
           401: { description: "Unauthorized", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
           404: { description: "Not found", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+        },
+      },
+    },
+    "/settlements": {
+      get: {
+        summary: "List my settlements (proxied from Payments App)",
+        description: "Seller App does not own settlement data — it proxies this call to Payments App, locking `sellerId` to the authenticated seller. The response shape mirrors Payments App's GET /api/v1/settlements.",
+        tags: ["Settlements"],
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: "status",
+            in: "query",
+            schema: { type: "string", enum: ["pending", "paid", "failed", "manual_review"] },
+          },
+          { name: "from", in: "query", schema: { type: "string", format: "date" }, description: "ISO date — filter settlements created from this date" },
+          { name: "to", in: "query", schema: { type: "string", format: "date" }, description: "ISO date — filter settlements created up to this date" },
+          { name: "page", in: "query", schema: { type: "integer", default: 1 } },
+          { name: "limit", in: "query", schema: { type: "integer", default: 20, maximum: 100 } },
+        ],
+        responses: {
+          200: {
+            description: "Paginated settlements from Payments App",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    data: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          id: { type: "string", example: "set_01H…" },
+                          order_id: { type: "string", example: "ord_01H…" },
+                          seller_profile_id: { type: "string", example: "slp_01H…" },
+                          gross_amount_cents: { type: "integer", example: 66200000 },
+                          fee_amount_cents: { type: "integer", example: 6620000 },
+                          net_amount_cents: { type: "integer", example: 59580000 },
+                          currency: { type: "string", example: "ARS" },
+                          status: { type: "string", enum: ["pending", "paid", "failed", "manual_review"] },
+                          paid_at: { type: "string", format: "date-time", nullable: true },
+                          created_at: { type: "string", format: "date-time" },
+                        },
+                      },
+                    },
+                    pagination: { $ref: "#/components/schemas/Pagination" },
+                  },
+                },
+              },
+            },
+          },
+          401: { description: "Unauthorized", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          502: { description: "Payments App unreachable after 3 retries", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
         },
       },
     },
