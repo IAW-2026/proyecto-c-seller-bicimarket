@@ -51,6 +51,7 @@ model Product {
   widthCm         Int?             @map("width_cm")
   heightCm        Int?             @map("height_cm")
   status          ProductStatus    @default(draft)
+  idempotencyKey  String?          @unique @map("idempotency_key")
   images          ProductImage[]
   salesOrderItems SalesOrderItem[]
   createdAt       DateTime         @default(now()) @map("created_at")

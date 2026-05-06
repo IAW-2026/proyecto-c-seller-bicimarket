@@ -78,6 +78,16 @@ export async function POST(request: NextRequest) {
   const { profile, error } = await requireSellerProfile();
   if (error) return error;
 
+  const idempotencyKey = request.headers.get("Idempotency-Key");
+
+  if (idempotencyKey) {
+    const existing = await prisma.product.findUnique({
+      where: { idempotencyKey },
+      include: { images: { orderBy: { position: "asc" } } },
+    });
+    if (existing) return Response.json(formatProduct(existing));
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -116,6 +126,7 @@ export async function POST(request: NextRequest) {
       priceCents: Number(price_cents),
       currency: String(currency),
       weightGrams: Number(weight_grams),
+      ...(idempotencyKey && { idempotencyKey }),
       ...(dims && {
         lengthCm: dims.length,
         widthCm: dims.width,

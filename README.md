@@ -1,108 +1,211 @@
-# Marketplace App — Base Template
+# BiciMarket — Seller App
 
-Proyecto base para el marketplace de compra-venta entre usuarios. Cada integrante clona este repo y lo adapta para su modulo.
+App del vendedor dentro de **BiciMarket**, un marketplace de bicicletas construido como sistema de cuatro apps Next.js independientes que se comunican via REST.
 
-**Tipo de proyecto:** Marketplace
+**Owner:** Pierino Spina
+**Deploy:** [proyecto-c-seller-pierinospina.vercel.app](https://proyecto-c-seller-pierinospina.vercel.app)
 
-## Integrantes
+## Apps del sistema
 
-| Integrante | App asignada |
-|------------|-------------|
-| <!-- Nombre --> | Buyer App |
-| <!-- Nombre --> | Seller App |
-| <!-- Nombre --> | Shipping App |
-| <!-- Nombre --> | Payments App |
+| App | Owner | Rol |
+|-----|-------|-----|
+| Buyer App | Camila Rojas | Carrito y órdenes |
+| **Seller App** | **Pierino Spina** | Catálogo y ventas |
+| Shipping App | Enrique Seitz | Envíos y tracking |
+| Payments App | Rocco Paoloni | Pagos y liquidaciones |
 
-## Documentacion (Etapa 1)
+## Stack tecnológico
 
-- [Descripcion del sistema](docs/01-descripcion.md)
-- [Asignacion de responsabilidades](docs/02-responsabilidades.md)
-- [Diseno de APIs inter-servicios](docs/03-apis.md)
-- [Modelo de datos por aplicacion](docs/04-modelo-de-datos.md)
-- [Usuarios compartidos](docs/05-usuarios.md)
-
-## Stack tecnologico
-
-- **Framework:** Next.js (App Router) + TypeScript
+- **Framework:** Next.js 16 (App Router) + TypeScript
 - **Estilos:** Tailwind CSS + shadcn/ui
-- **Autenticacion:** Clerk
+- **Autenticación:** Clerk
 - **Base de datos:** PostgreSQL (Supabase)
 - **ORM:** Prisma
-- **State management:** Zustand
 - **Data fetching:** TanStack Query + Axios
-- **Formularios:** React Hook Form + Zod
 - **Deploy:** Vercel
 
 ## Setup local
 
 ```bash
-# 1. Clonar el repo
 git clone <url-del-repo>
-cd marketplace-app
-
-# 2. Instalar dependencias
+cd seller-app
 npm install
-
-# 3. Configurar variables de entorno
-cp .env.example .env.local
-# Completar las variables en .env.local
-
-# 4. Generar el cliente de Prisma
+cp .env.example .env.local   # completar las variables
+npx prisma migrate deploy
 npx prisma generate
-
-# 5. Ejecutar migraciones
-npx prisma migrate dev
-
-# 6. Iniciar el servidor de desarrollo
-npm run dev
+npm run dev                  # http://localhost:3000
 ```
+
+> Después de cada `npm install` o cambio en `schema.prisma`, correr `npx prisma generate`.
+
+## Variables de entorno
+
+| Variable | Descripción |
+|----------|-------------|
+| `DATABASE_URL` | Conexión pooled a Supabase (runtime) |
+| `DIRECT_URL` | Conexión directa a Supabase (migraciones) |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk — clave pública |
+| `CLERK_SECRET_KEY` | Clerk — clave secreta |
+| `INCOMING_SERVICE_TOKEN` | Token que deben enviar las otras apps en `X-Service-Token` |
+| `OUTGOING_SERVICE_TOKEN` | Token que esta app usa para llamar a las otras apps |
+| `SHIPPING_APP_URL` | URL base de la Shipping App |
+| `PAYMENTS_APP_URL` | URL base de la Payments App |
 
 ## Estructura del proyecto
 
 ```
 src/
-├── app/                    # App Router (pages & API routes)
-│   ├── api/               # API endpoints
-│   ├── dashboard/         # Dashboard protegido
-│   ├── sign-in/           # Login (Clerk)
-│   └── sign-up/           # Registro (Clerk)
-├── components/
-│   └── ui/                # Componentes shadcn/ui
-├── hooks/                 # Custom hooks
-├── lib/                   # Utilidades (prisma, axios, utils)
-├── providers/             # Context providers (TanStack Query)
-├── store/                 # Zustand stores
-└── generated/             # Prisma generated client (gitignored)
+├── app/
+│   ├── api/
+│   │   └── v1/
+│   │       ├── admin/seller-profiles/[id]/verification/  # PATCH — admin only
+│   │       ├── products/                                 # GET (catálogo público), POST
+│   │       ├── products/[productId]/                     # GET, PATCH, DELETE
+│   │       ├── products/[productId]/availability/        # GET — server-to-server
+│   │       ├── products/[productId]/images/              # POST, DELETE
+│   │       ├── sales-orders/                             # GET, POST (recibe de Payments)
+│   │       ├── sales-orders/[id]/accept|reject|prepare/  # POST — acciones de estado
+│   │       ├── sales-orders/[id]/payment-status/         # PATCH — recibe de Payments
+│   │       ├── sales-orders/[id]/shipping-status/        # PATCH — recibe de Shipping
+│   │       ├── seller-profile/[id]/                      # GET — server-to-server
+│   │       ├── seller-profile/[id]/pickup-address/       # GET — server-to-server
+│   │       ├── seller-profile/me/                        # GET, PUT
+│   │       ├── seller-profile/me/products/               # GET — todos los estados
+│   │       └── settlements/                              # GET — proxy a Payments App
+│   ├── dashboard/                                        # Dashboard del vendedor (protegido)
+│   │   └── _components/
+│   │       ├── orders-tab.tsx
+│   │       ├── products-tab.tsx
+│   │       ├── profile-tab.tsx
+│   │       └── settlements-tab.tsx
+│   ├── products/                                         # Catálogo público
+│   ├── api-docs/                                         # Swagger UI
+│   ├── sign-in/ y sign-up/
+│   └── page.tsx                                          # Home pública
+├── hooks/                   # useSellerProfile, useSellerProducts, useSalesOrders, useSettlements
+├── lib/
+│   ├── api-utils.ts         # requireAuth, requireAdmin, requireSellerProfile, requireServiceToken
+│   ├── inter-app.ts         # HTTP client con retry 3x (1s/3s/9s) y timeout 5s
+│   ├── prisma.ts
+│   └── axios.ts
+└── generated/               # Prisma client (gitignored)
 prisma/
-├── schema.prisma          # Modelo de datos
-└── migrations/            # Migraciones
-docs/                      # Documentacion Etapa 1
+├── schema.prisma
+└── migrations/
+docs/                        # Especificaciones Etapa 1
 ```
 
-## Comandos utiles
+## API pública (catálogo)
+
+Estos endpoints no requieren autenticación:
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `GET` | `/api/v1/products` | Catálogo filtrable y paginado (solo productos `active`) |
+| `GET` | `/api/v1/products/{id}/availability` | Confirma disponibilidad, retorna precio y peso |
+
+Parámetros de filtro en `GET /api/v1/products`: `q`, `category`, `brand`, `condition`, `seller_id`, `min_price_cents`, `max_price_cents`, `sort`, `page`, `limit`.
+
+## API server-to-server
+
+Requieren `X-Service-Token: <INCOMING_SERVICE_TOKEN>` + `X-Request-Id: <uuid>`:
+
+| Método | Ruta | Llamada por |
+|--------|------|-------------|
+| `POST` | `/api/v1/sales-orders` | Payments App — crea sub-orden tras pago aprobado |
+| `PATCH` | `/api/v1/sales-orders/{id}/payment-status` | Payments App |
+| `PATCH` | `/api/v1/sales-orders/{id}/shipping-status` | Shipping App |
+| `GET` | `/api/v1/seller-profile/{id}` | Cualquier app — perfil completo |
+| `GET` | `/api/v1/seller-profile/{id}/pickup-address` | Shipping App |
+
+## API del dashboard (requiere sesión Clerk)
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `GET/PUT` | `/api/v1/seller-profile/me` | Ver/crear/editar perfil propio |
+| `GET` | `/api/v1/seller-profile/me/products` | Todos los productos del vendedor (todos los estados) |
+| `GET/POST` | `/api/v1/products` | Listar activos / crear producto |
+| `GET/PATCH/DELETE` | `/api/v1/products/{id}` | Ver / editar / archivar producto |
+| `POST/DELETE` | `/api/v1/products/{id}/images` | Agregar / eliminar imagen |
+| `GET` | `/api/v1/sales-orders` | Órdenes de venta del vendedor |
+| `POST` | `/api/v1/sales-orders/{id}/accept` | Aceptar orden |
+| `POST` | `/api/v1/sales-orders/{id}/reject` | Rechazar orden (dispara reembolso) |
+| `POST` | `/api/v1/sales-orders/{id}/prepare` | Marcar como lista para enviar |
+| `GET` | `/api/v1/settlements` | Liquidaciones (proxy a Payments App) |
+
+## API de administración (requiere sesión Clerk con `publicMetadata.admin = true`)
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `PATCH` | `/api/v1/admin/seller-profiles/{id}/verification` | Cambiar estado de verificación |
+
+Body: `{ "status": "verified" | "pending_review" | "suspended" }`
+
+Para dar permisos de admin a un usuario: Clerk Dashboard → Users → usuario → Public metadata → `{ "admin": true }`.
+
+## Convenciones de la API
+
+- Todas las rutas bajo `/api/v1/`
+- Errores: `{ "error": { "code": "SCREAMING_SNAKE_CASE", "message": "...", "details": {} } }`
+- Paginación: `{ "data": [...], "pagination": { "total", "page", "limit", "has_more" } }` — default `limit=20`, max `limit=100`
+- Idempotencia: `POST /api/v1/products` acepta header `Idempotency-Key: <uuid>` — reenviar con la misma clave retorna el producto existente sin crear un duplicado
+
+## Dashboard del vendedor
+
+Acceso en `/dashboard` (requiere login). Tabs disponibles:
+
+- **Pedidos** — órdenes de venta con acciones (aceptar / rechazar / preparar)
+- **Catálogo** — lista de productos propios en todos los estados (borrador, activo, pausado, archivado). El botón "Nuevo producto" solo aparece si el perfil está `verified`
+- **Liquidaciones** — resumen de pagos liquidados por Payments App
+- **Mi perfil** — datos fiscales, dirección de retiro, estado de verificación. Los admins ven botones para cambiar el estado directamente desde el dashboard
+
+## Simular una compra (desarrollo)
+
+Para probar el flujo sin la Buyer/Payments App, ejecutar desde la consola del navegador en el sitio desplegado:
+
+```js
+fetch("/api/v1/sales-orders", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "X-Service-Token": "<INCOMING_SERVICE_TOKEN>",
+    "X-Request-Id": crypto.randomUUID(),
+  },
+  body: JSON.stringify({
+    order_id: crypto.randomUUID(),
+    order_seller_group_id: crypto.randomUUID(),
+    buyer_profile_id: "buyer-profile-123",
+    buyer_clerk_user_id: "user_buyer123",
+    payment_id: "payment-" + Date.now(),
+    items_subtotal_cents: 150000,
+    shipping_cost_cents: 5000,
+    total_cents: 155000,
+    currency: "ARS",
+    items: [{
+      product_id: "<PRODUCT_ID>",
+      product_name_snapshot: "Producto de prueba",
+      unit_price_cents: 150000,
+      quantity: 1,
+    }],
+    shipping_address_snapshot: {
+      street: "Av. Corrientes", number: "1234",
+      city: "Buenos Aires", province: "CABA",
+      postal_code: "1043", country: "AR"
+    }
+  })
+}).then(r => r.json()).then(console.log)
+```
+
+La orden aparece en el tab **Pedidos** del dashboard.
+
+## Comandos útiles
 
 ```bash
-# Regenerar cliente Prisma (necesario despues de cambiar schema.prisma o instalar deps)
-npx prisma generate
+npm run dev          # Servidor de desarrollo (puerto 3000)
+npm run build        # prisma generate + next build
+npm run lint         # ESLint
 
-# Ejecutar migraciones pendientes
-npx prisma migrate dev
-
-# Abrir Prisma Studio (explorar la DB en el navegador)
-npx prisma studio
-
-# Iniciar el servidor de desarrollo
-npm run dev
-
-# Si el servidor no conecta a la DB, para el server (Ctrl+C) y ejecuta:
-npx prisma generate && npm run dev
-
-# Si el puerto 3000 esta ocupado, matar el proceso (reemplazar PID):
-# taskkill /PID <numero> /F
+npx prisma generate          # Regenerar cliente (después de npm install o cambio de schema)
+npx prisma migrate deploy    # Aplicar migraciones pendientes
+npx prisma studio            # Explorar la DB en el navegador
 ```
-
-> **Nota:** Cada vez que se instalan dependencias (`npm install`) o se modifica `prisma/schema.prisma`, hay que correr `npx prisma generate` antes de iniciar el servidor.
-
-## Variables de entorno
-
-Ver `.env.example` para la lista completa de variables necesarias.
