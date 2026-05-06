@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useSellerProfile, useUpsertSellerProfile, type SellerProfileInput } from "@/hooks/use-seller-profile";
 import { useQueryClient } from "@tanstack/react-query";
-import axios from "@/lib/axios";
+import { api } from "@/lib/axios";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -78,7 +78,7 @@ export function ProfileTab({ isAdmin = false }: { isAdmin?: boolean }) {
     if (!profile) return;
     setVerifying(true);
     try {
-      await axios.patch(`/api/v1/admin/seller-profiles/${profile.id}/verification`, { status });
+      await api.patch(`/api/v1/admin/seller-profiles/${profile.id}/verification`, { status });
       await queryClient.invalidateQueries({ queryKey: ["seller-profile"] });
       toast.success(`Estado actualizado a: ${VERIFICATION_LABEL[status]}`);
     } catch {
