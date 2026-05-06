@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 
 // ── Error responses ──────────────────────────────────────────
@@ -37,10 +37,10 @@ export async function requireAuth() {
 }
 
 export async function requireAdmin() {
-  const { userId, sessionClaims } = await auth();
+  const { userId } = await auth();
   if (!userId) return { userId: null, error: Errors.unauthorized() };
-  const isAdmin = (sessionClaims?.publicMetadata as Record<string, unknown> | undefined)?.admin === true;
-  if (!isAdmin) return { userId: null, error: Errors.forbidden() };
+  const user = await currentUser();
+  if (user?.publicMetadata?.admin !== true) return { userId: null, error: Errors.forbidden() };
   return { userId, error: null };
 }
 
