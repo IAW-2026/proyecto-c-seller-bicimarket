@@ -48,10 +48,7 @@ export function useMyProducts() {
   return useQuery<PaginatedProducts>({
     queryKey: ["my-products"],
     queryFn: async () => {
-      // Fetch all statuses by querying without a status filter but using seller_id
-      // The /products endpoint only returns active ones publicly, so we need all statuses.
-      // We query /products?limit=100 — in a real system this would use cursor pagination.
-      const res = await api.get("/v1/products?limit=100&sort=-created_at");
+      const res = await api.get("/v1/seller-profile/me/products?limit=100");
       return res.data as PaginatedProducts;
     },
   });
