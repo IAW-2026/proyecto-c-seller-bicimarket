@@ -36,6 +36,14 @@ export async function requireAuth() {
   return { userId, error: null };
 }
 
+export async function requireAdmin() {
+  const { userId, sessionClaims } = await auth();
+  if (!userId) return { userId: null, error: Errors.unauthorized() };
+  const isAdmin = (sessionClaims?.publicMetadata as Record<string, unknown> | undefined)?.admin === true;
+  if (!isAdmin) return { userId: null, error: Errors.forbidden() };
+  return { userId, error: null };
+}
+
 export async function requireSellerProfile() {
   const { userId, error } = await requireAuth();
   if (error || !userId) return { profile: null, error: error ?? Errors.unauthorized() };

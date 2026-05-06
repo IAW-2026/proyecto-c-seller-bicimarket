@@ -47,7 +47,7 @@ export default async function DashboardPage() {
           </TabsContent>
 
           <TabsContent value="profile">
-            <ProfileTab />
+            <ProfileTab isAdmin={user.publicMetadata?.admin === true} />
           </TabsContent>
         </Tabs>
       </main>

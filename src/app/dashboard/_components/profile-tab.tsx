@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useSellerProfile, useUpsertSellerProfile, type SellerProfileInput } from "@/hooks/use-seller-profile";
+import { useQueryClient } from "@tanstack/react-query";
+import axios from "@/lib/axios";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -44,9 +46,11 @@ const EMPTY: SellerProfileInput = {
   },
 };
 
-export function ProfileTab() {
+export function ProfileTab({ isAdmin = false }: { isAdmin?: boolean }) {
   const { data: profile, isLoading } = useSellerProfile();
   const upsert = useUpsertSellerProfile();
+  const queryClient = useQueryClient();
+  const [verifying, setVerifying] = useState(false);
   const [form, setForm] = useState<SellerProfileInput>(EMPTY);
 
   useEffect(() => {
@@ -68,6 +72,20 @@ export function ProfileTab() {
 
   function setAddr(k: keyof SellerProfileInput["pickup_address"], v: string) {
     setForm((f) => ({ ...f, pickup_address: { ...f.pickup_address, [k]: v } }));
+  }
+
+  async function handleVerify(status: "verified" | "pending_review" | "suspended") {
+    if (!profile) return;
+    setVerifying(true);
+    try {
+      await axios.patch(`/api/v1/admin/seller-profiles/${profile.id}/verification`, { status });
+      await queryClient.invalidateQueries({ queryKey: ["seller-profile"] });
+      toast.success(`Estado actualizado a: ${VERIFICATION_LABEL[status]}`);
+    } catch {
+      toast.error("No se pudo actualizar el estado");
+    } finally {
+      setVerifying(false);
+    }
   }
 
   async function handleSave() {
@@ -93,11 +111,45 @@ export function ProfileTab() {
   return (
     <div className="space-y-6 max-w-xl">
       {profile && (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm text-muted-foreground">Estado de verificación:</span>
           <Badge variant={VERIFICATION_VARIANT[profile.verification_status]}>
             {VERIFICATION_LABEL[profile.verification_status]}
           </Badge>
+          {isAdmin && (
+            <>
+              {profile.verification_status !== "verified" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleVerify("verified")}
+                  disabled={verifying}
+                >
+                  Verificar
+                </Button>
+              )}
+              {profile.verification_status !== "pending_review" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleVerify("pending_review")}
+                  disabled={verifying}
+                >
+                  Pasar a pendiente
+                </Button>
+              )}
+              {profile.verification_status !== "suspended" && (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => handleVerify("suspended")}
+                  disabled={verifying}
+                >
+                  Suspender
+                </Button>
+              )}
+            </>
+          )}
         </div>
       )}
 
