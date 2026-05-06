@@ -12,6 +12,7 @@ import {
   type Product,
   type CreateProductInput,
 } from "@/hooks/use-seller-products";
+import { useSellerProfile } from "@/hooks/use-seller-profile";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -390,6 +391,8 @@ function ProductCard({ product }: { product: Product }) {
 export function ProductsTab() {
   const [createOpen, setCreateOpen] = useState(false);
   const { data, isLoading, error } = useMyProducts();
+  const { data: profile } = useSellerProfile();
+  const isVerified = profile?.verification_status === "verified";
 
   if (isLoading) return <p className="text-sm text-muted-foreground">Cargando productos…</p>;
   if (error) return <p className="text-sm text-destructive">Error al cargar productos</p>;
@@ -404,9 +407,15 @@ export function ProductsTab() {
         <h3 className="font-heading text-base font-semibold">
           Catálogo{active.length > 0 && ` (${active.length})`}
         </h3>
-        <Button size="sm" onClick={() => setCreateOpen(true)}>
-          Nuevo producto
-        </Button>
+        {isVerified ? (
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            Nuevo producto
+          </Button>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Verificá tu perfil para publicar productos
+          </p>
+        )}
       </div>
 
       {active.length === 0 ? (

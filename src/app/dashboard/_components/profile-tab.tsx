@@ -78,7 +78,7 @@ export function ProfileTab({ isAdmin = false }: { isAdmin?: boolean }) {
     if (!profile) return;
     setVerifying(true);
     try {
-      await api.patch(`/api/v1/admin/seller-profiles/${profile.id}/verification`, { status });
+      await api.patch(`/v1/admin/seller-profiles/${profile.id}/verification`, { status });
       await queryClient.invalidateQueries({ queryKey: ["seller-profile"] });
       toast.success(`Estado actualizado a: ${VERIFICATION_LABEL[status]}`);
     } catch {
