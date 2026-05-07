@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { Bike, Lock } from "lucide-react";
 import {
   useMyProducts,
   useCreateProduct,
@@ -405,21 +406,31 @@ export function ProductsTab() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="font-heading text-base font-semibold">
-          Catálogo{active.length > 0 && ` (${active.length})`}
+          Catálogo ({active.length})
         </h3>
         {isVerified ? (
           <Button size="sm" onClick={() => setCreateOpen(true)}>
-            Nuevo producto
+            + Nuevo producto
           </Button>
         ) : (
-          <p className="text-xs text-muted-foreground">
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Lock className="size-3" />
             Verificá tu perfil para publicar productos
           </p>
         )}
       </div>
 
       {active.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No tenés productos. Creá el primero.</p>
+        <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-12 text-center">
+          <div className="flex size-10 items-center justify-center rounded-full bg-muted">
+            <Bike className="size-5 text-muted-foreground" />
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {isVerified
+              ? "No tenés productos. Creá el primero."
+              : "Verificá tu perfil para empezar a publicar."}
+          </p>
+        </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {active.map((p) => (

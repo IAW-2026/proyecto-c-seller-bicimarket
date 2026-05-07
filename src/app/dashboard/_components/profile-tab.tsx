@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { useSellerProfile, useUpsertSellerProfile, type SellerProfileInput } from "@/hooks/use-seller-profile";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/axios";
+import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -154,9 +155,10 @@ export function ProfileTab({ isAdmin = false }: { isAdmin?: boolean }) {
       )}
 
       {!profile && (
-        <p className="text-sm text-muted-foreground">
-          Completá tu perfil de vendedor para poder publicar productos.
-        </p>
+        <div className="flex items-start gap-3 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-muted-foreground">
+          <AlertCircle className="mt-0.5 size-4 shrink-0 text-warning" />
+          <span>Completá tu perfil de vendedor para poder publicar productos.</span>
+        </div>
       )}
 
       <Card>

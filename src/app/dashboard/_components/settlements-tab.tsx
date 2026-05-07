@@ -71,8 +71,49 @@ export function SettlementsTab() {
   const settlements = data?.data ?? [];
   const pagination = data?.pagination;
 
+  const paidTotal = settlements
+    .filter((s) => s.status === "paid")
+    .reduce((acc, s) => acc + s.net_amount_cents, 0);
+  const pendingTotal = settlements
+    .filter((s) => s.status === "pending")
+    .reduce((acc, s) => acc + s.net_amount_cents, 0);
+  const feesTotal = settlements.reduce((acc, s) => acc + s.fee_amount_cents, 0);
+
   return (
     <div className="space-y-4">
+      {/* Info banner */}
+      <div className="flex items-start gap-3 rounded-lg border bg-secondary/50 px-4 py-3 text-sm text-muted-foreground">
+        <span>
+          Las liquidaciones se acreditan después de la entrega confirmada. La comisión del
+          marketplace ya se descuenta en el monto neto.
+        </span>
+      </div>
+
+      {/* Stat cards */}
+      {!error && !isLoading && (
+        <div className="grid gap-3 sm:grid-cols-3">
+          {[
+            { label: "Total liquidado", value: formatCents(paidTotal), accent: true },
+            { label: "Pendiente de acreditación", value: formatCents(pendingTotal) },
+            { label: "Comisión cobrada", value: formatCents(feesTotal), sub: "10% sobre el bruto" },
+          ].map((s) => (
+            <Card key={s.label}>
+              <CardContent className="pt-4 pb-4">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">{s.label}</p>
+                <p
+                  className={`mt-1 font-mono text-2xl font-semibold ${
+                    s.accent ? "text-primary" : ""
+                  }`}
+                >
+                  {s.value}
+                </p>
+                {s.sub && <p className="mt-0.5 text-xs text-muted-foreground">{s.sub}</p>}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <h3 className="font-heading text-base font-semibold">Liquidaciones</h3>
         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v ?? "all")}>
@@ -91,9 +132,9 @@ export function SettlementsTab() {
 
       {isLoading && <p className="text-sm text-muted-foreground">Cargando liquidaciones…</p>}
       {error && (
-        <p className="text-sm text-destructive">
-          Error al cargar liquidaciones. Verificá que el servicio de pagos esté disponible.
-        </p>
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-muted-foreground">
+          No se pudo conectar con el servicio de pagos. Las liquidaciones no están disponibles en este momento.
+        </div>
       )}
 
       {!isLoading && !error && settlements.length === 0 && (

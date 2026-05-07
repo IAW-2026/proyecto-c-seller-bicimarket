@@ -9,6 +9,7 @@ import {
   useSalesOrders,
   type SalesOrder,
 } from "@/hooks/use-sales-orders";
+import { Package } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { formatCents } from "@/lib/format";
@@ -243,11 +245,48 @@ function OrderCard({ order }: { order: SalesOrder }) {
 
 // ── Tab ──────────────────────────────────────────────────────
 
+function OrdersSkeletonGrid() {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <Card key={i}>
+          <CardHeader className="pb-2">
+            <div className="flex justify-between">
+              <div className="space-y-2">
+                <Skeleton className="h-3 w-36" />
+                <Skeleton className="h-3 w-44" />
+              </div>
+              <Skeleton className="h-5 w-20 rounded-full" />
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-3/4" />
+            <Separator />
+            <Skeleton className="h-3 w-1/2" />
+            <Skeleton className="h-8 w-full rounded-md" />
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
 export function OrdersTab() {
   const { data, isLoading, error } = useSalesOrders();
 
-  if (isLoading) return <p className="text-sm text-muted-foreground">Cargando pedidos…</p>;
-  if (error) return <p className="text-sm text-destructive">Error al cargar pedidos</p>;
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <h3 className="font-heading text-base font-semibold">Pedidos activos</h3>
+        <OrdersSkeletonGrid />
+      </div>
+    );
+  }
+
+  if (error) {
+    return <p className="text-sm text-destructive">Error al cargar pedidos</p>;
+  }
 
   const orders = data?.data ?? [];
   const active = orders.filter(
@@ -261,10 +300,15 @@ export function OrdersTab() {
     <div className="space-y-6">
       <section>
         <h3 className="mb-3 font-heading text-base font-semibold">
-          Pedidos activos{active.length > 0 && ` (${active.length})`}
+          Pedidos activos ({active.length})
         </h3>
         {active.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No hay pedidos activos.</p>
+          <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-12 text-center">
+            <div className="flex size-10 items-center justify-center rounded-full bg-muted">
+              <Package className="size-5 text-muted-foreground" />
+            </div>
+            <p className="text-sm text-muted-foreground">No hay pedidos activos.</p>
+          </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {active.map((o) => (
