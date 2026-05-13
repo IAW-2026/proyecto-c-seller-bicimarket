@@ -18,6 +18,9 @@ const isPublicRoute = createRouteMatcher([
   // Legacy routes kept for backwards compat
   "/products(.*)",
   "/api/products(.*)",
+  // Dev simulator — guarded by NODE_ENV check inside each handler
+  "/dev(.*)",
+  "/api/dev(.*)",
 ]);
 
 export default clerkMiddleware(async (auth, request) => {
