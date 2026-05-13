@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { formatSalesOrder } from "@/app/api/v1/sales-orders/[salesOrderId]/route";
+import { formatSalesOrder } from "@/app/api/v1/sales-orders/_format";
 
 export async function GET() {
   if (process.env.NODE_ENV !== "development") {

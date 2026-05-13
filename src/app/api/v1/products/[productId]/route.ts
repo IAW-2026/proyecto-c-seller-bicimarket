@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Errors, requireSellerProfile } from "@/lib/api-utils";
-import { formatProduct } from "../route";
+import { formatProduct } from "../_format";
 
 export async function GET(
   _request: NextRequest,

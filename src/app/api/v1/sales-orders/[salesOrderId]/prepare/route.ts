@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { Errors, requireSellerProfile } from "@/lib/api-utils";
 import { interAppCall } from "@/lib/inter-app";
-import { formatSalesOrder } from "../route";
+import { formatSalesOrder } from "../../_format";
 
 const validTransitions: Record<string, string[]> = {
   accepted: ["preparing"],

@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { Errors, requireSellerProfile } from "@/lib/api-utils";
-import { formatSalesOrder } from "../route";
+import { formatSalesOrder } from "../../_format";
 
 export async function POST(
   _request: Request,

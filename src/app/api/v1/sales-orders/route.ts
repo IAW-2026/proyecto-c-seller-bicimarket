@@ -7,7 +7,7 @@ import {
   requireSellerProfile,
   requireServiceToken,
 } from "@/lib/api-utils";
-import { formatSalesOrder } from "./[salesOrderId]/route";
+import { formatSalesOrder } from "./_format";
 
 export async function GET(request: NextRequest) {
   const { profile, error } = await requireSellerProfile();

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Errors, requireSellerProfile, getPaginationParams, paginatedResponse } from "@/lib/api-utils";
-import { formatProduct } from "@/app/api/v1/products/route";
+import { formatProduct } from "@/app/api/v1/products/_format";
 
 // Authenticated endpoint: returns ALL products for the logged-in seller (all statuses).
 export async function GET(request: NextRequest) {

@@ -419,7 +419,87 @@ Las variables con `NEXT_PUBLIC_` prefix son expuestas al browser. Las demás son
 
 ---
 
-## 16. Resumen: flujo completo de un pedido
+## 16. Panel de administración (`/admin`)
+
+### El problema que resuelve
+
+Para que un vendedor pueda activar productos, su `verificationStatus` debe ser `verified`. Esa verificación la tiene que hacer un **administrador** revisando los datos legales del vendedor. No puede hacerlo cualquier usuario registrado.
+
+### Cómo se determina quién es admin
+
+No hay una tabla de admins en la BD. El flag vive directamente en Clerk, en el campo `publicMetadata` del usuario:
+
+```json
+{ "admin": true }
+```
+
+Para asignar ese flag hay que entrar al dashboard de Clerk → usuario → *Public metadata* → agregar `{ "admin": true }`. Eso hace que el JWT que Clerk emite para ese usuario incluya ese dato.
+
+**¿Por qué en Clerk y no en la BD?** Porque la validación de auth ya pasa por Clerk. Agregar una segunda tabla de admins implicaría dos consultas (una a Clerk + una a la BD) en cada request. Además, si la BD tuviera un bug que borra el flag de admin, se perdería el acceso. En Clerk el dato es más estable.
+
+### Seguridad en dos capas
+
+**Capa 1 — La página** (`src/app/admin/page.tsx`): es un Server Component. Lo primero que hace es:
+```ts
+const user = await currentUser();
+if (!user) redirect("/sign-in");
+if (user.publicMetadata?.admin !== true) redirect("/dashboard");
+```
+Si el usuario no está logueado o no es admin, nunca ve la UI.
+
+**Capa 2 — La API**: el endpoint `GET /api/v1/admin/seller-profiles` y el `PATCH /api/v1/admin/seller-profiles/:id/verification` llaman a `requireAdmin()` antes de hacer cualquier cosa. Aunque alguien llame a la API directamente sin pasar por la UI, recibe `403 FORBIDDEN`.
+
+**¿Por qué dos capas y no una sola?** La UI puede proteger la vista, pero no la API. Cualquiera puede hacer un `curl` directo a la URL de la API. La validación en la API es la que realmente importa; la de la UI es solo UX (evitar que el usuario llegue a una página de error).
+
+### Archivos del panel admin
+
+```
+src/app/admin/
+├── page.tsx                    # Server Component — chequea admin, renderiza la página
+└── _components/
+    └── sellers-list.tsx        # Client Component — tabla con botones de acción
+
+src/app/api/v1/admin/
+└── seller-profiles/
+    ├── route.ts                # GET — lista todos los perfiles (nuevo)
+    └── [sellerProfileId]/
+        └── verification/
+            └── route.ts        # PATCH — cambia verificationStatus (ya existía)
+
+src/hooks/
+└── use-admin-sellers.ts        # useAdminSellers() + useAdminVerify()
+```
+
+### Qué puede hacer el admin desde la tabla
+
+Cada fila muestra: nombre del vendedor, CUIT, condición fiscal, estado actual y botones. Los botones cambian según el estado actual del perfil:
+
+| Estado actual | Botones disponibles |
+|---------------|---------------------|
+| `pending_review` | Verificar + Suspender |
+| `verified` | Suspender |
+| `suspended` | Reactivar (vuelve a `pending_review`) |
+
+Esta lógica está en el componente `SellerRow` de `sellers-list.tsx`. No se muestra el botón del estado en que ya está (no tiene sentido "verificar" a alguien que ya está verificado).
+
+### El hook `useAdminVerify`
+
+```ts
+export function useAdminVerify() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }) =>
+      api.patch(`/v1/admin/seller-profiles/${id}/verification`, { status }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-sellers"] }),
+  });
+}
+```
+
+Cuando la mutación tiene éxito, invalida el cache `["admin-sellers"]`. Eso hace que TanStack Query re-fetchee la lista automáticamente, mostrando el nuevo estado sin que el admin tenga que recargar la página.
+
+---
+
+## 17. Resumen: flujo completo de un pedido
 
 ```
 1. Comprador paga en Buyer App → Payments App procesa el pago

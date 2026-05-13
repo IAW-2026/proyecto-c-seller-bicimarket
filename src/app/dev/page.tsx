@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { formatSalesOrder } from "@/app/api/v1/sales-orders/[salesOrderId]/route";
+import { formatSalesOrder } from "@/app/api/v1/sales-orders/_format";
 import { DevSimulator } from "./_components/DevSimulator";
 
 export const dynamic = "force-dynamic";
