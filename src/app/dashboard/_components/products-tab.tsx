@@ -126,23 +126,24 @@ function CreateProductDialog({
         <div className="grid gap-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Título *</Label>
-              <Input value={form.title} onChange={(e) => set("title", e.target.value)} />
+              <Label htmlFor="product-title">Título *</Label>
+              <Input id="product-title" value={form.title} onChange={(e) => set("title", e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label>Marca *</Label>
-              <Input value={form.brand} onChange={(e) => set("brand", e.target.value)} />
+              <Label htmlFor="product-brand">Marca *</Label>
+              <Input id="product-brand" value={form.brand} onChange={(e) => set("brand", e.target.value)} />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Modelo *</Label>
-              <Input value={form.model} onChange={(e) => set("model", e.target.value)} />
+              <Label htmlFor="product-model">Modelo *</Label>
+              <Input id="product-model" value={form.model} onChange={(e) => set("model", e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label>Precio (ARS) *</Label>
+              <Label htmlFor="product-price">Precio (ARS) *</Label>
               <Input
+                id="product-price"
                 type="number"
                 min={0}
                 value={form.price_cents / 100 || ""}
@@ -153,12 +154,12 @@ function CreateProductDialog({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Categoría</Label>
+              <Label htmlFor="product-category">Categoría</Label>
               <Select
                 value={form.category}
                 onValueChange={(v) => set("category", v as Product["category"])}
               >
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id="product-category"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {(Object.entries(CATEGORY_LABELS) as [Product["category"], string][]).map(([v, l]) => (
                     <SelectItem key={v} value={v}>{l}</SelectItem>
@@ -167,12 +168,12 @@ function CreateProductDialog({
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Condición</Label>
+              <Label htmlFor="product-condition">Condición</Label>
               <Select
                 value={form.condition}
                 onValueChange={(v) => set("condition", v as Product["condition"])}
               >
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id="product-condition"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {(Object.entries(CONDITION_LABELS) as [Product["condition"], string][]).map(([v, l]) => (
                     <SelectItem key={v} value={v}>{l}</SelectItem>
@@ -183,8 +184,9 @@ function CreateProductDialog({
           </div>
 
           <div className="space-y-1">
-            <Label>Peso (gramos) *</Label>
+            <Label htmlFor="product-weight">Peso (gramos) *</Label>
             <Input
+              id="product-weight"
               type="number"
               min={0}
               value={form.weight_grams || ""}
@@ -193,8 +195,9 @@ function CreateProductDialog({
           </div>
 
           <div className="space-y-1">
-            <Label>Descripción</Label>
+            <Label htmlFor="product-description">Descripción</Label>
             <Textarea
+              id="product-description"
               rows={3}
               value={form.description}
               onChange={(e) => set("description", e.target.value)}
@@ -324,7 +327,7 @@ function ProductCard({ product }: { product: Product }) {
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={img.url}
-                  alt=""
+                  alt={`Imagen de ${product.title}`}
                   className="h-16 w-16 rounded object-cover border"
                 />
                 <button
@@ -414,7 +417,7 @@ export function ProductsTab() {
           </Button>
         ) : (
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Lock className="size-3" />
+            <Lock className="size-3" aria-hidden="true" />
             Verificá tu perfil para publicar productos
           </p>
         )}
@@ -423,7 +426,7 @@ export function ProductsTab() {
       {active.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-12 text-center">
           <div className="flex size-10 items-center justify-center rounded-full bg-muted">
-            <Bike className="size-5 text-muted-foreground" />
+            <Bike className="size-5 text-muted-foreground" aria-hidden="true" />
           </div>
           <p className="text-sm text-muted-foreground">
             {isVerified

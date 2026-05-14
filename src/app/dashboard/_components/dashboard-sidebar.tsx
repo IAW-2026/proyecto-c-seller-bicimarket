@@ -19,6 +19,7 @@ export function DashboardSidebar({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <aside
+      aria-label="Navegación principal"
       className={cn(
         "relative shrink-0 border-r border-border/60 bg-card/30 py-6 transition-all duration-200",
         collapsed ? "w-14 px-2" : "w-52 px-3"
@@ -26,20 +27,23 @@ export function DashboardSidebar({ isAdmin }: { isAdmin: boolean }) {
     >
       <button
         onClick={() => setCollapsed((c) => !c)}
+        aria-label={collapsed ? "Expandir menú" : "Colapsar menú"}
+        aria-expanded={!collapsed}
         className="absolute -right-3 top-6 z-10 flex size-6 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm hover:text-foreground"
       >
         {collapsed ? (
-          <ChevronRight className="size-3.5" />
+          <ChevronRight className="size-3.5" aria-hidden="true" />
         ) : (
-          <ChevronLeft className="size-3.5" />
+          <ChevronLeft className="size-3.5" aria-hidden="true" />
         )}
       </button>
 
-      <nav className="flex flex-col gap-1">
+      <nav aria-label="Secciones del panel" className="flex flex-col gap-1">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => (
           <Link
             key={href}
             href={href}
+            aria-label={collapsed ? label : undefined}
             title={collapsed ? label : undefined}
             className={cn(
               "flex items-center rounded-md py-2 text-sm font-medium transition-colors",
@@ -49,7 +53,7 @@ export function DashboardSidebar({ isAdmin }: { isAdmin: boolean }) {
                 : "text-muted-foreground hover:bg-muted hover:text-foreground"
             )}
           >
-            <Icon className="size-4 shrink-0" />
+            <Icon className="size-4 shrink-0" aria-hidden="true" />
             {!collapsed && label}
           </Link>
         ))}
@@ -59,6 +63,7 @@ export function DashboardSidebar({ isAdmin }: { isAdmin: boolean }) {
             <div className="my-2 border-t border-border/60" />
             <Link
               href="/dashboard/admin"
+              aria-label={collapsed ? "Admin" : undefined}
               title={collapsed ? "Admin" : undefined}
               className={cn(
                 "flex items-center rounded-md py-2 text-sm font-medium transition-colors",
@@ -68,7 +73,7 @@ export function DashboardSidebar({ isAdmin }: { isAdmin: boolean }) {
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
-              <Shield className="size-4 shrink-0" />
+              <Shield className="size-4 shrink-0" aria-hidden="true" />
               {!collapsed && "Admin"}
             </Link>
           </>

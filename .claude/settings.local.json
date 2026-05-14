@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(Remove-Item *)"
+      "Bash(Remove-Item *)",
+      "Bash(rm -f 'C:/Users/pieri/OneDrive/Escritorio/REPO PARA IAW/initial-next-prisma-main/seller-app/src/hooks/use-orders.ts')",
+      "Bash(rm -f 'C:/Users/pieri/OneDrive/Escritorio/REPO PARA IAW/initial-next-prisma-main/seller-app/src/store/use-example-store.ts')",
+      "Bash(rm -f 'C:/Users/pieri/OneDrive/Escritorio/REPO PARA IAW/initial-next-prisma-main/seller-app/src/app/dashboard/welcome-card.tsx')",
+      "Bash(rm -f 'C:/Users/pieri/OneDrive/Escritorio/REPO PARA IAW/initial-next-prisma-main/seller-app/src/app/products/page.tsx')",
+      "Bash(rm -f 'C:/Users/pieri/OneDrive/Escritorio/REPO PARA IAW/initial-next-prisma-main/seller-app/src/hooks/use-products.ts')"
     ]
   }
 }

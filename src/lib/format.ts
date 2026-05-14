@@ -1,7 +1,7 @@
-export function formatCents(cents: number): string {
+export function formatCents(cents: number, currency = "ARS"): string {
   return new Intl.NumberFormat("es-AR", {
     style: "currency",
-    currency: "ARS",
+    currency,
     maximumFractionDigits: 0,
   }).format(cents / 100);
 }

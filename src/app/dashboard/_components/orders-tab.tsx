@@ -220,6 +220,7 @@ function OrderCard({ order }: { order: SalesOrder }) {
             </DialogDescription>
           </DialogHeader>
           <Textarea
+            aria-label="Motivo del rechazo"
             placeholder="Ej: Producto dañado al revisar antes del despacho"
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
@@ -305,7 +306,7 @@ export function OrdersTab() {
         {active.length === 0 ? (
           <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-12 text-center">
             <div className="flex size-10 items-center justify-center rounded-full bg-muted">
-              <Package className="size-5 text-muted-foreground" />
+              <Package className="size-5 text-muted-foreground" aria-hidden="true" />
             </div>
             <p className="text-sm text-muted-foreground">No hay pedidos activos.</p>
           </div>

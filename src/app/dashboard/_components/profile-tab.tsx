@@ -156,7 +156,7 @@ export function ProfileTab({ isAdmin = false }: { isAdmin?: boolean }) {
 
       {!profile && (
         <div className="flex items-start gap-3 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-muted-foreground">
-          <AlertCircle className="mt-0.5 size-4 shrink-0 text-warning" />
+          <AlertCircle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
           <span>Completá tu perfil de vendedor para poder publicar productos.</span>
         </div>
       )}
@@ -168,15 +168,17 @@ export function ProfileTab({ isAdmin = false }: { isAdmin?: boolean }) {
         <CardContent className="grid gap-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Razón social *</Label>
+              <Label htmlFor="legal-name">Razón social *</Label>
               <Input
+                id="legal-name"
                 value={form.legal_name}
                 onChange={(e) => setTop("legal_name", e.target.value)}
               />
             </div>
             <div className="space-y-1">
-              <Label>Nombre público *</Label>
+              <Label htmlFor="display-name">Nombre público *</Label>
               <Input
+                id="display-name"
                 value={form.display_name}
                 onChange={(e) => setTop("display_name", e.target.value)}
               />
@@ -185,21 +187,22 @@ export function ProfileTab({ isAdmin = false }: { isAdmin?: boolean }) {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>CUIT / CUIL *</Label>
+              <Label htmlFor="tax-id">CUIT / CUIL *</Label>
               <Input
+                id="tax-id"
                 value={form.tax_id}
                 onChange={(e) => setTop("tax_id", e.target.value)}
               />
             </div>
             <div className="space-y-1">
-              <Label>Condición fiscal</Label>
+              <Label htmlFor="tax-condition">Condición fiscal</Label>
               <Select
                 value={form.tax_condition}
                 onValueChange={(v) =>
                   setTop("tax_condition", v as SellerProfileInput["tax_condition"])
                 }
               >
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id="tax-condition"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="monotributo">Monotributo</SelectItem>
                   <SelectItem value="responsable_inscripto">Responsable inscripto</SelectItem>
@@ -210,8 +213,9 @@ export function ProfileTab({ isAdmin = false }: { isAdmin?: boolean }) {
           </div>
 
           <div className="space-y-1">
-            <Label>CBU / Alias bancario *</Label>
+            <Label htmlFor="bank-account">CBU / Alias bancario *</Label>
             <Input
+              id="bank-account"
               value={form.bank_account_reference}
               onChange={(e) => setTop("bank_account_reference", e.target.value)}
             />
@@ -226,15 +230,17 @@ export function ProfileTab({ isAdmin = false }: { isAdmin?: boolean }) {
         <CardContent className="grid gap-3">
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-2 space-y-1">
-              <Label>Calle *</Label>
+              <Label htmlFor="addr-street">Calle *</Label>
               <Input
+                id="addr-street"
                 value={form.pickup_address.street}
                 onChange={(e) => setAddr("street", e.target.value)}
               />
             </div>
             <div className="space-y-1">
-              <Label>Número</Label>
+              <Label htmlFor="addr-number">Número</Label>
               <Input
+                id="addr-number"
                 value={form.pickup_address.number}
                 onChange={(e) => setAddr("number", e.target.value)}
               />
@@ -243,15 +249,17 @@ export function ProfileTab({ isAdmin = false }: { isAdmin?: boolean }) {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Ciudad *</Label>
+              <Label htmlFor="addr-city">Ciudad *</Label>
               <Input
+                id="addr-city"
                 value={form.pickup_address.city}
                 onChange={(e) => setAddr("city", e.target.value)}
               />
             </div>
             <div className="space-y-1">
-              <Label>Provincia *</Label>
+              <Label htmlFor="addr-province">Provincia *</Label>
               <Input
+                id="addr-province"
                 value={form.pickup_address.province}
                 onChange={(e) => setAddr("province", e.target.value)}
               />
@@ -260,15 +268,17 @@ export function ProfileTab({ isAdmin = false }: { isAdmin?: boolean }) {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Código postal</Label>
+              <Label htmlFor="addr-postal">Código postal</Label>
               <Input
+                id="addr-postal"
                 value={form.pickup_address.postal_code}
                 onChange={(e) => setAddr("postal_code", e.target.value)}
               />
             </div>
             <div className="space-y-1">
-              <Label>País</Label>
+              <Label htmlFor="addr-country">País</Label>
               <Input
+                id="addr-country"
                 value={form.pickup_address.country}
                 onChange={(e) => setAddr("country", e.target.value)}
               />

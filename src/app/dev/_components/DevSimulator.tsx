@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { formatCents } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,11 +28,6 @@ type SalesOrder = {
   items: Array<{ id: string; product_name_snapshot: string; quantity: number; unit_price_cents: number }>;
 };
 
-// ── Helpers ──────────────────────────────────────────────────
-
-function formatCents(cents: number, currency = "ARS") {
-  return new Intl.NumberFormat("es-AR", { style: "currency", currency }).format(cents / 100);
-}
 
 const PAYMENT_STATUSES = ["paid", "refunded", "settled"];
 const SHIPPING_STATUSES = [

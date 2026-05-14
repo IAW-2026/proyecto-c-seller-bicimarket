@@ -15,9 +15,6 @@ const isPublicRoute = createRouteMatcher([
   "/api/v1/sales-orders",
   "/api/v1/sales-orders/:id/payment-status",
   "/api/v1/sales-orders/:id/shipping-status",
-  // Legacy routes kept for backwards compat
-  "/products(.*)",
-  "/api/products(.*)",
   // Dev simulator — guarded by NODE_ENV check inside each handler
   "/dev(.*)",
   "/api/dev(.*)",
