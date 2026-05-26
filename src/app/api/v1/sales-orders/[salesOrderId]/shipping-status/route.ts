@@ -40,24 +40,47 @@ export async function PATCH(
   });
   if (!order) return Errors.notFound("Sales order");
 
+  // Map Shipping App statuses to fulfillment status transitions (doc §1.3)
+  const fulfillmentTransition: Partial<Record<string, string>> = {
+    picked_up: "handed_over",
+    delivered: "delivered",
+  };
+  const newFulfillmentStatus = fulfillmentTransition[String(shipping_status)];
+
   const historyPayload: Record<string, string> = {};
   if (shipment_id != null) historyPayload.shipment_id = String(shipment_id);
   if (occurred_at != null) historyPayload.occurred_at = String(occurred_at);
+
+  const occurredAtDate = occurred_at ? new Date(String(occurred_at)) : new Date();
+
+  const historyEntries = [
+    {
+      fromStatus: order.shippingStatus,
+      toStatus: String(shipping_status),
+      source: "shipping",
+      payload: historyPayload,
+      occurredAt: occurredAtDate,
+    },
+    ...(newFulfillmentStatus
+      ? [
+          {
+            fromStatus: order.fulfillmentStatus,
+            toStatus: newFulfillmentStatus,
+            source: "shipping",
+            payload: historyPayload,
+            occurredAt: occurredAtDate,
+          },
+        ]
+      : []),
+  ];
 
   await prisma.salesOrder.update({
     where: { id: salesOrderId },
     data: {
       shippingStatus: shipping_status as never,
+      ...(newFulfillmentStatus ? { fulfillmentStatus: newFulfillmentStatus as never } : {}),
       ...(shipment_id != null ? { shipmentId: String(shipment_id) } : {}),
-      statusHistory: {
-        create: {
-          fromStatus: order.shippingStatus,
-          toStatus: String(shipping_status),
-          source: "shipping",
-          payload: historyPayload,
-          occurredAt: occurred_at ? new Date(String(occurred_at)) : new Date(),
-        },
-      },
+      statusHistory: { create: historyEntries },
     },
   });
 

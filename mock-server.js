@@ -34,6 +34,9 @@ function readBody(req) {
 
 let shipCount = 1;
 
+// In-memory settlements — starts empty; populated when dev simulator fires "settled"
+const settlements = [];
+
 const server = http.createServer(async (req, res) => {
   const [path, qs] = (req.url ?? "").split("?");
   const query = new URLSearchParams(qs ?? "");
@@ -63,34 +66,60 @@ const server = http.createServer(async (req, res) => {
     return respond(res, 201, shipment);
   }
 
+  // ── Payments App: POST /api/v1/settlements ───────────────────
+  // Called by the dev simulator when payment_status = "settled"
+  if (req.method === "POST" && path === "/api/v1/settlements") {
+    const body = await readBody(req);
+    const gross = Number(body.gross_amount_cents ?? 0);
+    const fee = Math.round(gross * 0.10);
+    const settlement = {
+      id: `mock_sett_${String(settlements.length + 1).padStart(4, "0")}`,
+      order_id: body.order_id ?? "unknown",
+      seller_profile_id: body.seller_profile_id ?? null,
+      gross_amount_cents: gross,
+      fee_amount_cents: fee,
+      net_amount_cents: gross - fee,
+      currency: body.currency ?? "ARS",
+      status: "pending",
+      paid_at: null,
+      created_at: new Date().toISOString(),
+    };
+    settlements.push(settlement);
+    console.log(`[mock] Created settlement ${settlement.id} for order ${settlement.order_id} — gross $${(gross / 100).toFixed(2)}`);
+    return respond(res, 201, settlement);
+  }
+
   // ── Payments App: GET /api/v1/settlements ────────────────────
   if (req.method === "GET" && path === "/api/v1/settlements") {
     const sellerId = query.get("sellerId");
+    const statusFilter = query.get("status");
+
+    let result = sellerId
+      ? settlements.filter((s) => s.seller_profile_id === sellerId)
+      : settlements;
+
+    if (statusFilter) {
+      result = result.filter((s) => s.status === statusFilter);
+    }
+
+    if (result.length === 0) {
+      console.log(`[mock] No settlements found for sellerId=${sellerId} — returning empty list`);
+    }
+
     return respond(res, 200, {
-      data: [
-        {
-          id: "mock_sett_0001",
-          seller_id: sellerId,
-          amount_cents: 125000,
-          currency: "ARS",
-          status: "pending",
-          period_from: "2026-04-01",
-          period_to: "2026-04-30",
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: "mock_sett_0002",
-          seller_id: sellerId,
-          amount_cents: 289500,
-          currency: "ARS",
-          status: "settled",
-          period_from: "2026-03-01",
-          period_to: "2026-03-31",
-          settled_at: "2026-04-05T10:00:00.000Z",
-          created_at: "2026-04-01T00:00:00.000Z",
-        },
-      ],
-      pagination: { total: 2, page: 1, limit: 20, has_more: false },
+      data: result,
+      pagination: { total: result.length, page: 1, limit: 20, has_more: false },
+    });
+  }
+
+  // ── Payments App: POST /api/v1/payments/:id/refund ───────────
+  if (req.method === "POST" && /^\/api\/v1\/payments\/[^/]+\/refund$/.test(path)) {
+    const body = await readBody(req);
+    console.log(`[mock] Refund requested for payment — amount: ${body.amount_cents}, reason: ${body.reason}`);
+    return respond(res, 200, {
+      id: `mock_refund_${Date.now()}`,
+      status: "approved",
+      amount_cents: body.amount_cents,
     });
   }
 
@@ -101,7 +130,10 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`\nMock server running on http://localhost:${PORT}`);
-  console.log(`  POST /api/v1/shipments   -> fake Shipping App`);
-  console.log(`  GET  /api/v1/settlements -> fake Payments App`);
-  console.log(`\nAccepts any non-empty X-Service-Token header.\n`);
+  console.log(`  POST /api/v1/shipments             -> fake Shipping App`);
+  console.log(`  POST /api/v1/settlements           -> register settlement (called by dev simulator)`);
+  console.log(`  GET  /api/v1/settlements           -> list settlements`);
+  console.log(`  POST /api/v1/payments/:id/refund   -> fake refund`);
+  console.log(`\nSettlements start empty and are created when you simulate "settled" in /dev.\n`);
+  console.log(`Accepts any non-empty X-Service-Token header.\n`);
 });
