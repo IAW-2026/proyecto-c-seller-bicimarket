@@ -23,8 +23,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Marketplace App",
-  description: "Marketplace de compra-venta entre usuarios",
+  title: "BiciMarket Vendedor",
+  description: "Gestioná tu catálogo, pedidos y liquidaciones en BiciMarket.",
 };
 
 export default function RootLayout({
