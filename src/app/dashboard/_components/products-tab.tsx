@@ -98,13 +98,31 @@ function CreateProductDialog({
     setForm((f) => ({ ...f, [k]: v }));
   }
 
+  function setDim(key: "length" | "width" | "height", v: number) {
+    setForm((f) => ({
+      ...f,
+      dimensions_cm: {
+        length: f.dimensions_cm?.length ?? 0,
+        width: f.dimensions_cm?.width ?? 0,
+        height: f.dimensions_cm?.height ?? 0,
+        [key]: v,
+      },
+    }));
+  }
+
   async function handleSubmit() {
     if (!form.title || !form.brand || !form.model || form.price_cents <= 0) {
       toast.error("Completá los campos obligatorios");
       return;
     }
+    const dim = form.dimensions_cm;
+    const payload: CreateProductInput = {
+      ...form,
+      dimensions_cm:
+        dim && dim.length > 0 && dim.width > 0 && dim.height > 0 ? dim : undefined,
+    };
     try {
-      await create.mutateAsync(form);
+      await create.mutateAsync(payload);
       toast.success("Producto creado en borrador");
       setForm(EMPTY_FORM);
       onOpenChange(false);
@@ -192,6 +210,39 @@ function CreateProductDialog({
               value={form.weight_grams || ""}
               onChange={(e) => set("weight_grams", parseInt(e.target.value || "0", 10))}
             />
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <Label htmlFor="product-length">Largo (cm)</Label>
+              <Input
+                id="product-length"
+                type="number"
+                min={0}
+                value={form.dimensions_cm?.length || ""}
+                onChange={(e) => setDim("length", parseInt(e.target.value || "0", 10))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="product-width">Ancho (cm)</Label>
+              <Input
+                id="product-width"
+                type="number"
+                min={0}
+                value={form.dimensions_cm?.width || ""}
+                onChange={(e) => setDim("width", parseInt(e.target.value || "0", 10))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="product-height">Alto (cm)</Label>
+              <Input
+                id="product-height"
+                type="number"
+                min={0}
+                value={form.dimensions_cm?.height || ""}
+                onChange={(e) => setDim("height", parseInt(e.target.value || "0", 10))}
+              />
+            </div>
           </div>
 
           <div className="space-y-1">
