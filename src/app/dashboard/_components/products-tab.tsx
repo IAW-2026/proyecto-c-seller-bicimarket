@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Bike, Lock } from "lucide-react";
 import {
@@ -276,36 +276,79 @@ function AddImageDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const [url, setUrl] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const add = useAddProductImage();
 
+  // Revoke object URL to avoid memory leaks
+  useEffect(() => {
+    return () => { if (preview) URL.revokeObjectURL(preview); };
+  }, [preview]);
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0] ?? null;
+    if (preview) URL.revokeObjectURL(preview);
+    setFile(f);
+    setPreview(f ? URL.createObjectURL(f) : null);
+  }
+
+  function handleClose() {
+    setFile(null);
+    setPreview(null);
+    if (inputRef.current) inputRef.current.value = "";
+    onOpenChange(false);
+  }
+
   async function handleAdd() {
-    if (!url.trim()) return;
+    if (!file) return;
     try {
-      await add.mutateAsync({ productId, url: url.trim() });
-      toast.success("Imagen agregada");
-      setUrl("");
-      onOpenChange(false);
+      await add.mutateAsync({ productId, file });
+      toast.success("Imagen subida");
+      handleClose();
     } catch {
-      toast.error("No se pudo agregar la imagen");
+      toast.error("No se pudo subir la imagen");
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Agregar imagen</DialogTitle>
-          <DialogDescription>Ingresá la URL pública de la imagen.</DialogDescription>
+          <DialogDescription>Seleccioná un archivo (JPEG, PNG, WebP o GIF · máx. 5 MB).</DialogDescription>
         </DialogHeader>
-        <Input
-          placeholder="https://..."
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-        />
+
+        <div className="space-y-3">
+          <Input
+            ref={inputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            className="cursor-pointer"
+            onChange={handleFileChange}
+          />
+
+          {preview && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={preview}
+              alt="Vista previa"
+              className="max-h-48 w-full rounded-md border object-contain"
+            />
+          )}
+
+          {file && (
+            <p className="text-xs text-muted-foreground">
+              {file.name} · {(file.size / 1024).toFixed(0)} KB
+            </p>
+          )}
+        </div>
+
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button disabled={add.isPending} onClick={handleAdd}>Agregar</Button>
+          <Button variant="outline" onClick={handleClose}>Cancelar</Button>
+          <Button disabled={!file || add.isPending} onClick={handleAdd}>
+            {add.isPending ? "Subiendo…" : "Subir imagen"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
