@@ -3,7 +3,7 @@
 App del vendedor dentro de **BiciMarket**, un marketplace de bicicletas construido como sistema de cuatro apps Next.js independientes que se comunican via REST.
 
 **Owner:** Pierino Spina
-**Deploy:** [proyecto-c-seller-pierinospina.vercel.app](https://proyecto-c-seller-pierinospina.vercel.app)
+**Deploy:** 
 
 ## Apps del sistema
 
@@ -158,45 +158,6 @@ Acceso en `/dashboard` (requiere login). Tabs disponibles:
 - **Catálogo** — lista de productos propios en todos los estados (borrador, activo, pausado, archivado). El botón "Nuevo producto" solo aparece si el perfil está `verified`
 - **Liquidaciones** — resumen de pagos liquidados por Payments App
 - **Mi perfil** — datos fiscales, dirección de retiro, estado de verificación. Los admins ven botones para cambiar el estado directamente desde el dashboard
-
-## Simular una compra (desarrollo)
-
-Para probar el flujo sin la Buyer/Payments App, ejecutar desde la consola del navegador en el sitio desplegado:
-
-```js
-fetch("/api/v1/sales-orders", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "X-Service-Token": "<INCOMING_SERVICE_TOKEN>",
-    "X-Request-Id": crypto.randomUUID(),
-  },
-  body: JSON.stringify({
-    order_id: crypto.randomUUID(),
-    order_seller_group_id: crypto.randomUUID(),
-    buyer_profile_id: "buyer-profile-123",
-    buyer_clerk_user_id: "user_buyer123",
-    payment_id: "payment-" + Date.now(),
-    items_subtotal_cents: 150000,
-    shipping_cost_cents: 5000,
-    total_cents: 155000,
-    currency: "ARS",
-    items: [{
-      product_id: "<PRODUCT_ID>",
-      product_name_snapshot: "Producto de prueba",
-      unit_price_cents: 150000,
-      quantity: 1,
-    }],
-    shipping_address_snapshot: {
-      street: "Av. Corrientes", number: "1234",
-      city: "Buenos Aires", province: "CABA",
-      postal_code: "1043", country: "AR"
-    }
-  })
-}).then(r => r.json()).then(console.log)
-```
-
-La orden aparece en el tab **Pedidos** del dashboard.
 
 ## Comandos útiles
 
