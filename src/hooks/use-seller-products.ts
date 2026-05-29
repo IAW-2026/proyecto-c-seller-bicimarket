@@ -82,8 +82,14 @@ export function useArchiveProduct() {
 export function useAddProductImage() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ productId, url }: { productId: string; url: string }) =>
-      api.post(`/v1/products/${productId}/images`, { url }),
+    mutationFn: ({ productId, file }: { productId: string; file: File }) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      // Do NOT set Content-Type manually — Axios sets multipart + boundary automatically
+      return api.post(`/v1/products/${productId}/images`, formData, {
+        headers: { "Content-Type": undefined },
+      });
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["my-products"] }),
   });
 }
