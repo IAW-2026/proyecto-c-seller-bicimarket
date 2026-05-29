@@ -86,7 +86,9 @@ export function useAddProductImage() {
       const formData = new FormData();
       formData.append("file", file);
       // Do NOT set Content-Type manually — Axios sets multipart + boundary automatically
-      return api.post(`/v1/products/${productId}/images`, formData);
+      return api.post(`/v1/products/${productId}/images`, formData, {
+        headers: { "Content-Type": undefined },
+      });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["my-products"] }),
   });
