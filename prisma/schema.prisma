@@ -163,6 +163,7 @@ enum ProductCategory {
   bmx
   parts
   accessories
+  indumentaria
 }
 
 enum ProductCondition {

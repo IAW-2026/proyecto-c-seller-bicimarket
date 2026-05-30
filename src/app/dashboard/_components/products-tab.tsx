@@ -48,6 +48,7 @@ const CATEGORY_LABELS: Record<Product["category"], string> = {
   bmx: "BMX",
   parts: "Repuestos",
   accessories: "Accesorios",
+  indumentaria: "Indumentaria",
 };
 
 const CONDITION_LABELS: Record<Product["condition"], string> = {
