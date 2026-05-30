@@ -12,7 +12,7 @@ export type Product = {
   description: string;
   brand: string;
   model: string;
-  category: "mtb" | "road" | "urban" | "kids" | "bmx" | "parts" | "accessories";
+  category: "mtb" | "road" | "urban" | "kids" | "bmx" | "parts" | "accessories" | "indumentaria";
   condition: "new" | "used_like_new" | "used_good" | "used_fair";
   price_cents: number;
   currency: string;
