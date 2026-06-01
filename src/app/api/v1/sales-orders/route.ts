@@ -107,6 +107,76 @@ function stubResponse(
   });
 }
 
+// ── Seed interactive demo orders ─────────────────────────────
+// Called once when totalForSeller === 0 and seller has products.
+// Persists 8 orders to DB so accept/prepare/reject actions work.
+
+async function seedStubOrders(sellerId: string, products: StubProduct[]) {
+  const addr = {
+    street: "Av. Corrientes",
+    number: "1234",
+    city: "Buenos Aires",
+    province: "CABA",
+    postal_code: "C1043",
+    country: "AR",
+  };
+  const now = Date.now();
+  const ago = (days: number) => new Date(now - days * 86_400_000);
+  const prod = (i: number) => products[i % products.length];
+
+  type Spec = {
+    fulfillment: string;
+    items: Array<{ p: StubProduct; qty: number }>;
+    daysOld: number;
+    paymentStatus: string;
+  };
+
+  const specs: Spec[] = [
+    { fulfillment: "pending",       items: [{ p: prod(0), qty: 1 }],                         daysOld: 0,  paymentStatus: "paid" },
+    { fulfillment: "accepted",      items: [{ p: prod(1), qty: 2 }],                         daysOld: 1,  paymentStatus: "paid" },
+    { fulfillment: "preparing",     items: [{ p: prod(2), qty: 1 }],                         daysOld: 3,  paymentStatus: "paid" },
+    { fulfillment: "ready_to_ship", items: [{ p: prod(3), qty: 1 }],                         daysOld: 5,  paymentStatus: "paid" },
+    { fulfillment: "handed_over",   items: [{ p: prod(0), qty: 1 }],                         daysOld: 8,  paymentStatus: "paid" },
+    { fulfillment: "delivered",     items: [{ p: prod(1), qty: 1 }, { p: prod(2), qty: 1 }], daysOld: 14, paymentStatus: "paid" },
+    { fulfillment: "rejected",      items: [{ p: prod(3), qty: 1 }],                         daysOld: 10, paymentStatus: "refunded" },
+    { fulfillment: "cancelled",     items: [{ p: prod(0), qty: 1 }],                         daysOld: 12, paymentStatus: "refunded" },
+  ];
+
+  await prisma.$transaction(
+    specs.map((spec) => {
+      const subtotal = spec.items.reduce((s, { p, qty }) => s + p.priceCents * qty, 0);
+      return prisma.salesOrder.create({
+        data: {
+          id: newId("sor"),
+          orderId: newId("ext"),
+          orderSellerGroupId: newId("grp"),
+          sellerProfileId: sellerId,
+          buyerProfileId: newId("byr"),
+          buyerClerkUserId: newId("usr"),
+          paymentId: newId("pay"),
+          paymentStatus: spec.paymentStatus as never,
+          fulfillmentStatus: spec.fulfillment as never,
+          itemsSubtotalCents: subtotal,
+          shippingCostCents: 5000,
+          totalCents: subtotal + 5000,
+          currency: "ARS",
+          shippingAddressSnapshot: addr as never,
+          createdAt: ago(spec.daysOld),
+          items: {
+            create: spec.items.map(({ p, qty }) => ({
+              id: newId("soi"),
+              productId: p.id,
+              productNameSnapshot: p.title,
+              unitPriceCents: p.priceCents,
+              quantity: qty,
+            })),
+          },
+        },
+      });
+    })
+  );
+}
+
 // ── Handlers ─────────────────────────────────────────────────
 
 export async function GET(request: NextRequest) {
@@ -128,7 +198,26 @@ export async function GET(request: NextRequest) {
       select: { id: true, title: true, priceCents: true },
       take: 5,
     });
-    return stubResponse(request, profile!.id, products);
+
+    if (products.length === 0) {
+      // No products yet — return non-interactive in-memory stubs
+      return stubResponse(request, profile!.id, products);
+    }
+
+    // Has products — seed interactive demo orders into DB (runs only once)
+    await seedStubOrders(profile!.id, products);
+
+    const [seeded, seededTotal] = await Promise.all([
+      prisma.salesOrder.findMany({
+        where: { sellerProfileId: profile!.id },
+        include: { items: true },
+        orderBy: { createdAt: "desc" },
+        skip: 0,
+        take: 50,
+      }),
+      prisma.salesOrder.count({ where: { sellerProfileId: profile!.id } }),
+    ]);
+    return Response.json(paginatedResponse(seeded.map(formatSalesOrder), seededTotal, 1, 50));
   }
 
   const where = {
