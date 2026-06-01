@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useSettlements, type Settlement } from "@/hooks/use-settlements";
+import { useSellerProfile } from "@/hooks/use-seller-profile";
+import { Wallet, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -64,9 +66,42 @@ function SettlementRow({ s }: { s: Settlement }) {
 
 export function SettlementsTab() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const { data: profile, isLoading: profileLoading } = useSellerProfile();
   const { data, isLoading, error } = useSettlements(
     statusFilter !== "all" ? { status: statusFilter } : undefined
   );
+
+  if (profileLoading) {
+    return <p className="text-sm text-muted-foreground">Cargando liquidaciones…</p>;
+  }
+
+  if (!profile) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-12 text-center">
+        <div className="flex size-10 items-center justify-center rounded-full bg-muted">
+          <Wallet className="size-5 text-muted-foreground" aria-hidden="true" />
+        </div>
+        <p className="text-sm font-medium">Completá tu perfil de vendedor</p>
+        <p className="text-xs text-muted-foreground">
+          Necesitás crear tu perfil antes de ver las liquidaciones.
+        </p>
+      </div>
+    );
+  }
+
+  if (profile.verification_status !== "verified") {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-12 text-center">
+        <div className="flex size-10 items-center justify-center rounded-full bg-muted">
+          <Clock className="size-5 text-muted-foreground" aria-hidden="true" />
+        </div>
+        <p className="text-sm font-medium">Cuenta pendiente de activación</p>
+        <p className="text-xs text-muted-foreground">
+          Tu perfil está en revisión. Una vez verificado podrás ver tus liquidaciones.
+        </p>
+      </div>
+    );
+  }
 
   const settlements = data?.data ?? [];
   const pagination = data?.pagination;
