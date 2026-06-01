@@ -51,36 +51,40 @@ export async function PATCH(
 
   // Validate activation requirements
   if (status === "active") {
-    const imageCount = product.images.length;
-    const newWeight = weight_grams != null ? Number(weight_grams) : product.weightGrams;
-    const newPrice = price_cents != null ? Number(price_cents) : product.priceCents;
-
-    if (imageCount === 0) {
-      return Errors.unprocessable("VALIDATION_FAILED", "At least one image is required to activate", {
-        images: "at least 1",
-      });
-    }
-    if (!newWeight || newWeight <= 0) {
-      return Errors.unprocessable("VALIDATION_FAILED", "weight_grams must be greater than 0 to activate", {
-        weight_grams: "required",
-      });
-    }
-    if (!newPrice || newPrice <= 0) {
-      return Errors.unprocessable("VALIDATION_FAILED", "price_cents must be greater than 0 to activate", {
-        price_cents: "required",
-      });
-    }
-    const incomingDims = dimensions_cm as Record<string, number> | null | undefined;
-    const newLength = incomingDims?.length ?? product.lengthCm;
-    const newWidth = incomingDims?.width ?? product.widthCm;
-    const newHeight = incomingDims?.height ?? product.heightCm;
-    if (!newLength || !newWidth || !newHeight || newLength <= 0 || newWidth <= 0 || newHeight <= 0) {
-      return Errors.unprocessable("VALIDATION_FAILED", "dimensions_cm (length, width, height) are required to activate", {
-        dimensions_cm: "required",
-      });
-    }
     if (profile!.verificationStatus !== "verified") {
       return Errors.unprocessable("SELLER_NOT_VERIFIED", "Seller profile must be verified to publish products");
+    }
+
+    // Full validation only when activating from draft (paused products already met these requirements)
+    if (product.status !== "paused") {
+      const imageCount = product.images.length;
+      const newWeight = weight_grams != null ? Number(weight_grams) : product.weightGrams;
+      const newPrice = price_cents != null ? Number(price_cents) : product.priceCents;
+
+      if (imageCount === 0) {
+        return Errors.unprocessable("VALIDATION_FAILED", "At least one image is required to activate", {
+          images: "at least 1",
+        });
+      }
+      if (!newWeight || newWeight <= 0) {
+        return Errors.unprocessable("VALIDATION_FAILED", "weight_grams must be greater than 0 to activate", {
+          weight_grams: "required",
+        });
+      }
+      if (!newPrice || newPrice <= 0) {
+        return Errors.unprocessable("VALIDATION_FAILED", "price_cents must be greater than 0 to activate", {
+          price_cents: "required",
+        });
+      }
+      const incomingDims = dimensions_cm as Record<string, number> | null | undefined;
+      const newLength = incomingDims?.length ?? product.lengthCm;
+      const newWidth = incomingDims?.width ?? product.widthCm;
+      const newHeight = incomingDims?.height ?? product.heightCm;
+      if (!newLength || !newWidth || !newHeight || newLength <= 0 || newWidth <= 0 || newHeight <= 0) {
+        return Errors.unprocessable("VALIDATION_FAILED", "dimensions_cm (length, width, height) are required to activate", {
+          dimensions_cm: "required",
+        });
+      }
     }
   }
 
