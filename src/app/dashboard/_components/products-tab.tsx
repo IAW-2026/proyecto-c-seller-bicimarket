@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import Image from "next/image";
 import { Bike, Lock } from "lucide-react";
 import {
   useMyProducts,
@@ -419,10 +420,11 @@ function ProductCard({ product }: { product: Product }) {
           <div className="flex gap-2 flex-wrap">
             {product.images.map((img) => (
               <div key={img.id} className="relative group">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <Image
                   src={img.url}
                   alt={`Imagen de ${product.title}`}
+                  width={64}
+                  height={64}
                   className="h-16 w-16 rounded object-cover border"
                 />
                 <button

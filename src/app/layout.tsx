@@ -9,17 +9,21 @@ import "./globals.css";
 const instrumentSans = Instrument_Sans({
   variable: "--font-heading",
   subsets: ["latin"],
+  display: "swap",
 });
 
 const ibmPlexSans = IBM_Plex_Sans({
   variable: "--font-sans",
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["400", "500", "600"],
   subsets: ["latin"],
+  display: "swap",
 });
 
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  display: "swap",
+  preload: false,
 });
 
 export const metadata: Metadata = {
