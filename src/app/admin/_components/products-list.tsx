@@ -150,13 +150,13 @@ export function AdminProductsList() {
     page,
   });
 
-  function handleStatusChange(val: string) {
-    setStatus(val === "all" ? "" : val);
+  function handleStatusChange(val: string | null) {
+    setStatus(!val || val === "all" ? "" : val);
     setPage(1);
   }
 
-  function handleCategoryChange(val: string) {
-    setCategory(val === "all" ? "" : val);
+  function handleCategoryChange(val: string | null) {
+    setCategory(!val || val === "all" ? "" : val);
     setPage(1);
   }
 
