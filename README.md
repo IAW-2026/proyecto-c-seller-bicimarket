@@ -1,172 +1,57 @@
 # BiciMarket — Seller App
 
-App del vendedor dentro de **BiciMarket**, un marketplace de bicicletas construido como sistema de cuatro apps Next.js independientes que se comunican via REST.
+**Deploy:** https://proyecto-c-seller-bicimarket.vercel.app/
 
-**Owner:** Pierino Spina
-**Deploy:** 
+---
 
-## Apps del sistema
+## Usuarios de prueba
 
-| App | Owner | Rol |
-|-----|-------|-----|
-| Buyer App | Camila Rojas | Carrito y órdenes |
-| **Seller App** | **Pierino Spina** | Catálogo y ventas |
-| Shipping App | Enrique Seitz | Envíos y tracking |
-| Payments App | Rocco Paoloni | Pagos y liquidaciones |
+| Rol | Email | Contraseña |
+|-----|-------|------------|
+| Vendedor verificado | _a completar_ | _a completar_ |
+| Vendedor pendiente | _a completar_ | _a completar_ |
+| Admin | _a completar_ | _a completar_ |
 
-## Stack tecnológico
+> Los usuarios se crean en el Clerk propio de esta app (`seller.bicimarket`). El corrector debe iniciar sesión en `/sign-in` con las credenciales de arriba.
 
-- **Framework:** Next.js 16 (App Router) + TypeScript
-- **Estilos:** Tailwind CSS + shadcn/ui
-- **Autenticación:** Clerk
-- **Base de datos:** PostgreSQL (Supabase)
-- **ORM:** Prisma
-- **Data fetching:** TanStack Query + Axios
-- **Deploy:** Vercel
+---
 
-## Setup local
+## Cómo evaluar la aplicación
 
-```bash
-git clone <url-del-repo>
-cd seller-app
-npm install
-cp .env.example .env.local   # completar las variables
-npx prisma migrate deploy
-npx prisma generate
-npm run dev                  # http://localhost:3000
-```
+1. **Iniciar sesión** en `/sign-in` con alguno de los usuarios de arriba.
+2. **Dashboard del vendedor** (`/dashboard`): desde ahí se navega entre las cuatro secciones.
+   - **Catálogo** — crear, editar, activar/pausar y archivar productos. El botón "Nuevo producto" solo aparece si el perfil del vendedor está `verified`; con estado `pending_review` el catálogo queda bloqueado.
+   - **Pedidos** — ver órdenes de venta recibidas y ejecutar acciones (aceptar, rechazar, marcar como listo para enviar).
+   - **Liquidaciones** — resumen de pagos liquidados por la Payments App (proxy vía REST).
+   - **Mi perfil** — completar datos fiscales y dirección de retiro; ver estado de verificación.
+3. **Panel de admin** (`/dashboard/admin`): visible solo para usuarios con `publicMetadata.admin=true`. Permite verificar/suspender vendedores y ver el catálogo completo.
+4. **API pública** (`/api/v1/products`): el catálogo es accesible sin autenticación. Se puede probar directamente en el navegador o con curl.
+5. **API docs** (`/api-docs`): Swagger UI con todos los endpoints documentados.
 
-> Después de cada `npm install` o cambio en `schema.prisma`, correr `npx prisma generate`.
+> Para probar el flujo completo (compra → pago → sub-orden en Seller) se requiere integración con las otras tres apps del sistema (Buyer, Payments, Shipping). Las llamadas server-to-server usan `X-Service-Token` en el header.
 
-## Variables de entorno
+---
 
-| Variable | Descripción |
-|----------|-------------|
-| `DATABASE_URL` | Conexión pooled a Supabase (runtime) |
-| `DIRECT_URL` | Conexión directa a Supabase (migraciones) |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk — clave pública |
-| `CLERK_SECRET_KEY` | Clerk — clave secreta |
-| `INCOMING_SERVICE_TOKEN` | Token que deben enviar las otras apps en `X-Service-Token` |
-| `OUTGOING_SERVICE_TOKEN` | Token que esta app usa para llamar a las otras apps |
-| `SHIPPING_APP_URL` | URL base de la Shipping App |
-| `PAYMENTS_APP_URL` | URL base de la Payments App |
+## Descripción del proyecto
 
-## Estructura del proyecto
+**BiciMarket** es un marketplace de bicicletas y repuestos construido como cuatro aplicaciones Next.js independientes: Buyer App (Camila Rojas), **Seller App (Pierino Spina)**, Shipping App (Enrique Seitz) y Payments App (Rocco Paoloni). Cada app tiene su propia base de datos PostgreSQL, su propio Clerk y se comunica con las demás exclusivamente por REST sobre HTTP, autenticando las llamadas inter-app con `X-Service-Token`.
 
-```
-src/
-├── app/
-│   ├── api/
-│   │   └── v1/
-│   │       ├── admin/seller-profiles/[id]/verification/  # PATCH — admin only
-│   │       ├── products/                                 # GET (catálogo público), POST
-│   │       ├── products/[productId]/                     # GET, PATCH, DELETE
-│   │       ├── products/[productId]/availability/        # GET — server-to-server
-│   │       ├── products/[productId]/images/              # POST, DELETE
-│   │       ├── sales-orders/                             # GET, POST (recibe de Payments)
-│   │       ├── sales-orders/[id]/accept|reject|prepare/  # POST — acciones de estado
-│   │       ├── sales-orders/[id]/payment-status/         # PATCH — recibe de Payments
-│   │       ├── sales-orders/[id]/shipping-status/        # PATCH — recibe de Shipping
-│   │       ├── seller-profile/[id]/                      # GET — server-to-server
-│   │       ├── seller-profile/[id]/pickup-address/       # GET — server-to-server
-│   │       ├── seller-profile/me/                        # GET, PUT
-│   │       ├── seller-profile/me/products/               # GET — todos los estados
-│   │       └── settlements/                              # GET — proxy a Payments App
-│   ├── dashboard/                                        # Dashboard del vendedor (protegido)
-│   │   └── _components/
-│   │       ├── orders-tab.tsx
-│   │       ├── products-tab.tsx
-│   │       ├── profile-tab.tsx
-│   │       └── settlements-tab.tsx
-│   ├── products/                                         # Catálogo público
-│   ├── api-docs/                                         # Swagger UI
-│   ├── sign-in/ y sign-up/
-│   └── page.tsx                                          # Home pública
-├── hooks/                   # useSellerProfile, useSellerProducts, useSalesOrders, useSettlements
-├── lib/
-│   ├── api-utils.ts         # requireAuth, requireAdmin, requireSellerProfile, requireServiceToken
-│   ├── inter-app.ts         # HTTP client con retry 3x (1s/3s/9s) y timeout 5s
-│   ├── prisma.ts
-│   └── axios.ts
-└── generated/               # Prisma client (gitignored)
-prisma/
-├── schema.prisma
-└── migrations/
-docs/                        # Especificaciones Etapa 1
-```
+Esta app es la **Seller App**: es la fuente de verdad del catálogo de productos y de las sub-órdenes de venta (`sales_orders`). Los vendedores se registran, completan su perfil y, una vez verificados por un admin, pueden publicar productos. Cuando un comprador paga, la Payments App notifica a esta app que crea la sub-orden correspondiente; el vendedor la acepta, prepara el pedido y lo marca listo para despacho, momento en que se solicita el envío a la Shipping App.
 
-## API pública (catálogo)
+El stack es Next.js 15 (App Router) con TypeScript, Tailwind CSS + shadcn/ui, Prisma sobre PostgreSQL (Supabase), TanStack Query + Axios para el data fetching del cliente, y Clerk para autenticación. El deploy corre en Vercel.
 
-Estos endpoints no requieren autenticación:
+---
 
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| `GET` | `/api/v1/products` | Catálogo filtrable y paginado (solo productos `active`) |
-| `GET` | `/api/v1/products/{id}/availability` | Confirma disponibilidad, retorna precio y peso |
+## Notas para la corrección
 
-Parámetros de filtro en `GET /api/v1/products`: `q`, `category`, `brand`, `condition`, `seller_id`, `min_price_cents`, `max_price_cents`, `sort`, `page`, `limit`.
+- **Sin control de stock**: por decisión de alcance del proyecto, todos los productos `active` tienen disponibilidad ilimitada. No existe el campo `stock` ni el error `INSUFFICIENT_STOCK`. El endpoint `GET /api/v1/products/{id}/availability` solo confirma que el producto sigue activo y devuelve precio y peso.
 
-## API server-to-server
+- **Provisioning perezoso sin webhooks**: el perfil local del vendedor se crea en el primer request autenticado leyendo los claims del JWT de Clerk, sin depender de webhooks. Los cambios hechos en el Clerk Dashboard se reflejan al próximo login.
 
-Requieren `X-Service-Token: <INCOMING_SERVICE_TOKEN>` + `X-Request-Id: <uuid>`:
+- **Flujo de verificación**: un vendedor recién registrado queda en `pending_review` y no puede activar productos. Un admin (usuario con `publicMetadata.admin=true` en el Clerk de esta app) lo aprueba desde `/dashboard/admin`. Solo entonces aparece el botón "Nuevo producto" en el catálogo.
 
-| Método | Ruta | Llamada por |
-|--------|------|-------------|
-| `POST` | `/api/v1/sales-orders` | Payments App — crea sub-orden tras pago aprobado |
-| `PATCH` | `/api/v1/sales-orders/{id}/payment-status` | Payments App |
-| `PATCH` | `/api/v1/sales-orders/{id}/shipping-status` | Shipping App |
-| `GET` | `/api/v1/seller-profile/{id}` | Cualquier app — perfil completo |
-| `GET` | `/api/v1/seller-profile/{id}/pickup-address` | Shipping App |
+- **Idempotencia en POSTs**: `POST /api/v1/products` acepta el header `Idempotency-Key`; reenviar con la misma clave devuelve el recurso existente sin duplicarlo.
 
-## API del dashboard (requiere sesión Clerk)
+- **Retry en llamadas salientes**: las llamadas a Shipping App y Payments App usan 3 reintentos con backoff lineal (1s / 3s / 9s) y timeout de 5s, implementado en `src/lib/inter-app.ts`.
 
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| `GET/PUT` | `/api/v1/seller-profile/me` | Ver/crear/editar perfil propio |
-| `GET` | `/api/v1/seller-profile/me/products` | Todos los productos del vendedor (todos los estados) |
-| `GET/POST` | `/api/v1/products` | Listar activos / crear producto |
-| `GET/PATCH/DELETE` | `/api/v1/products/{id}` | Ver / editar / archivar producto |
-| `POST/DELETE` | `/api/v1/products/{id}/images` | Agregar / eliminar imagen |
-| `GET` | `/api/v1/sales-orders` | Órdenes de venta del vendedor |
-| `POST` | `/api/v1/sales-orders/{id}/accept` | Aceptar orden |
-| `POST` | `/api/v1/sales-orders/{id}/reject` | Rechazar orden (dispara reembolso) |
-| `POST` | `/api/v1/sales-orders/{id}/prepare` | Marcar como lista para enviar |
-| `GET` | `/api/v1/settlements` | Liquidaciones (proxy a Payments App) |
-
-## API de administración (requiere sesión Clerk con `publicMetadata.admin = true`)
-
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| `PATCH` | `/api/v1/admin/seller-profiles/{id}/verification` | Cambiar estado de verificación |
-
-Body: `{ "status": "verified" | "pending_review" | "suspended" }`
-
-Para dar permisos de admin a un usuario: Clerk Dashboard → Users → usuario → Public metadata → `{ "admin": true }`.
-
-## Convenciones de la API
-
-- Todas las rutas bajo `/api/v1/`
-- Errores: `{ "error": { "code": "SCREAMING_SNAKE_CASE", "message": "...", "details": {} } }`
-- Paginación: `{ "data": [...], "pagination": { "total", "page", "limit", "has_more" } }` — default `limit=20`, max `limit=100`
-- Idempotencia: `POST /api/v1/products` acepta header `Idempotency-Key: <uuid>` — reenviar con la misma clave retorna el producto existente sin crear un duplicado
-
-## Dashboard del vendedor
-
-Acceso en `/dashboard` (requiere login). Tabs disponibles:
-
-- **Pedidos** — órdenes de venta con acciones (aceptar / rechazar / preparar)
-- **Catálogo** — lista de productos propios en todos los estados (borrador, activo, pausado, archivado). El botón "Nuevo producto" solo aparece si el perfil está `verified`
-- **Liquidaciones** — resumen de pagos liquidados por Payments App
-- **Mi perfil** — datos fiscales, dirección de retiro, estado de verificación. Los admins ven botones para cambiar el estado directamente desde el dashboard
-
-## Comandos útiles
-
-```bash
-npm run dev          # Servidor de desarrollo (puerto 3000)
-npm run build        # prisma generate + next build
-npm run lint         # ESLint
-
-npx prisma generate          # Regenerar cliente (después de npm install o cambio de schema)
-npx prisma migrate deploy    # Aplicar migraciones pendientes
-npx prisma studio            # Explorar la DB en el navegador
-```
+- **Documentación completa** del contrato inter-apps, modelo de datos, estados y diagramas de secuencia en la carpeta [`docs/`](docs/).
