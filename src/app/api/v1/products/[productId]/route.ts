@@ -70,6 +70,15 @@ export async function PATCH(
         price_cents: "required",
       });
     }
+    const incomingDims = dimensions_cm as Record<string, number> | null | undefined;
+    const newLength = incomingDims?.length ?? product.lengthCm;
+    const newWidth = incomingDims?.width ?? product.widthCm;
+    const newHeight = incomingDims?.height ?? product.heightCm;
+    if (!newLength || !newWidth || !newHeight || newLength <= 0 || newWidth <= 0 || newHeight <= 0) {
+      return Errors.unprocessable("VALIDATION_FAILED", "dimensions_cm (length, width, height) are required to activate", {
+        dimensions_cm: "required",
+      });
+    }
     if (profile!.verificationStatus !== "verified") {
       return Errors.unprocessable("SELLER_NOT_VERIFIED", "Seller profile must be verified to publish products");
     }

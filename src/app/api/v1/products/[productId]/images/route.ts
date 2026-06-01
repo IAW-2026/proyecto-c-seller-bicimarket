@@ -22,6 +22,16 @@ export async function POST(
   });
   if (!product) return Errors.notFound("Product");
 
+  const idempotencyKey = request.headers.get("Idempotency-Key");
+  if (idempotencyKey) {
+    const existing = await prisma.productImage.findUnique({ where: { idempotencyKey } });
+    if (existing) {
+      return Response.json(
+        { id: existing.id, product_id: existing.productId, url: existing.url, position: existing.position }
+      );
+    }
+  }
+
   const contentType = request.headers.get("content-type") ?? "";
   if (!contentType.includes("multipart/form-data")) {
     return Errors.badRequest("Content-Type must be multipart/form-data");
@@ -69,7 +79,13 @@ export async function POST(
       : (product.images[0] ? product.images[0].position + 1 : 0);
 
   const image = await prisma.productImage.create({
-    data: { id: newId("img"), productId, url: publicUrlData.publicUrl, position },
+    data: {
+      id: newId("img"),
+      productId,
+      url: publicUrlData.publicUrl,
+      position,
+      ...(idempotencyKey && { idempotencyKey }),
+    },
   });
 
   return Response.json(

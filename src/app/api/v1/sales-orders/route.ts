@@ -155,6 +155,15 @@ export async function POST(request: NextRequest) {
   const tokenError = requireServiceToken(request);
   if (tokenError) return tokenError;
 
+  const idempotencyKey = request.headers.get("Idempotency-Key");
+  if (idempotencyKey) {
+    const existing = await prisma.salesOrder.findUnique({
+      where: { idempotencyKey },
+      include: { items: true },
+    });
+    if (existing) return Response.json(formatSalesOrder(existing));
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -202,6 +211,7 @@ export async function POST(request: NextRequest) {
       buyerClerkUserId: String(buyer_clerk_user_id),
       paymentId: String(payment_id),
       paymentStatus: "paid",
+      ...(idempotencyKey && { idempotencyKey }),
       ...(shipping_quote_id != null ? { shippingQuoteId: String(shipping_quote_id) } : {}),
       itemsSubtotalCents: Number(items_subtotal_cents),
       shippingCostCents: Number(shipping_cost_cents),

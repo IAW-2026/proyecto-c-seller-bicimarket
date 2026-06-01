@@ -30,6 +30,7 @@ model SellerProfile {
   salesOrders          SalesOrder[]
   createdAt            DateTime           @default(now()) @map("created_at")
   updatedAt            DateTime           @updatedAt @map("updated_at")
+  deletedAt            DateTime?          @map("deleted_at")
 
   @@map("seller_profiles")
 }
@@ -65,11 +66,12 @@ model Product {
 }
 
 model ProductImage {
-  id        String  @id @default(cuid())
-  productId String  @map("product_id")
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  url       String
-  position  Int
+  id             String  @id @default(cuid())
+  productId      String  @map("product_id")
+  product        Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url            String
+  position       Int
+  idempotencyKey String? @unique @map("idempotency_key")
 
   @@unique([productId, position])
   @@map("product_images")
@@ -94,6 +96,7 @@ model SalesOrder {
   totalCents              Int                      @map("total_cents")
   currency                String                   @default("ARS")
   shippingAddressSnapshot Json                     @map("shipping_address_snapshot")
+  idempotencyKey          String?                  @unique @map("idempotency_key")
   items                   SalesOrderItem[]
   statusHistory           SalesOrderStatusHistory[]
   createdAt               DateTime                 @default(now()) @map("created_at")
@@ -200,11 +203,13 @@ enum FulfillmentStatus {
 
 enum SalesOrderShippingStatus {
   pending
+  created
   ready_for_pickup
   picked_up
   in_transit
   out_for_delivery
   delivered
+  failed_delivery
   returned
 }
 

@@ -31,8 +31,18 @@ export const Errors = {
 // ── Auth ────────────────────────────────────────────────────
 
 export async function requireAuth() {
-  const { userId } = await auth();
+  const { userId, sessionClaims } = await auth();
   if (!userId) return { userId: null, error: Errors.unauthorized() };
+
+  const email = (sessionClaims as Record<string, unknown>)?.email as string | undefined;
+  if (email) {
+    await prisma.user.upsert({
+      where: { id: userId },
+      create: { id: userId, email },
+      update: { email },
+    });
+  }
+
   return { userId, error: null };
 }
 
