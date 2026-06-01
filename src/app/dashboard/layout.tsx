@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -10,19 +10,22 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { userId, sessionClaims } = await auth();
+  const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 
-  const profile = await prisma.sellerProfile.findUnique({
-    where: { clerkUserId: userId },
-    select: { verificationStatus: true },
-  });
+  const [profile, clerkUser] = await Promise.all([
+    prisma.sellerProfile.findUnique({
+      where: { clerkUserId: userId },
+      select: { verificationStatus: true },
+    }),
+    currentUser(),
+  ]);
 
   if (profile?.verificationStatus === "suspended") {
     redirect("/suspended");
   }
 
-  const isAdmin = (sessionClaims?.publicMetadata as Record<string, unknown>)?.admin === true;
+  const isAdmin = clerkUser?.publicMetadata?.admin === true;
 
   return (
     <SidebarProvider>

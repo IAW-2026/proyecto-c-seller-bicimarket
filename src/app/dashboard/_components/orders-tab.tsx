@@ -9,7 +9,8 @@ import {
   useSalesOrders,
   type SalesOrder,
 } from "@/hooks/use-sales-orders";
-import { Package } from "lucide-react";
+import { useSellerProfile } from "@/hooks/use-seller-profile";
+import { Package, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -274,13 +275,42 @@ function OrdersSkeletonGrid() {
 }
 
 export function OrdersTab() {
+  const { data: profile, isLoading: profileLoading } = useSellerProfile();
   const { data, isLoading, error } = useSalesOrders();
 
-  if (isLoading) {
+  if (isLoading || profileLoading) {
     return (
       <div className="space-y-6">
         <h3 className="font-heading text-base font-semibold">Pedidos activos</h3>
         <OrdersSkeletonGrid />
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-12 text-center">
+        <div className="flex size-10 items-center justify-center rounded-full bg-muted">
+          <Package className="size-5 text-muted-foreground" aria-hidden="true" />
+        </div>
+        <p className="text-sm font-medium">Completá tu perfil de vendedor</p>
+        <p className="text-xs text-muted-foreground">
+          Necesitás crear tu perfil antes de poder recibir pedidos.
+        </p>
+      </div>
+    );
+  }
+
+  if (profile.verification_status !== "verified") {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-12 text-center">
+        <div className="flex size-10 items-center justify-center rounded-full bg-muted">
+          <Clock className="size-5 text-muted-foreground" aria-hidden="true" />
+        </div>
+        <p className="text-sm font-medium">Cuenta pendiente de activación</p>
+        <p className="text-xs text-muted-foreground">
+          Tu perfil está en revisión. Una vez verificado podrás ver y gestionar tus pedidos.
+        </p>
       </div>
     );
   }

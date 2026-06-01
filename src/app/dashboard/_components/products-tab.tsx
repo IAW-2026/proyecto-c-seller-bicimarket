@@ -496,7 +496,23 @@ export function ProductsTab() {
   const isVerified = profile?.verification_status === "verified";
 
   if (isLoading) return <p className="text-sm text-muted-foreground">Cargando productos…</p>;
-  if (error) return <p className="text-sm text-destructive">Error al cargar productos</p>;
+
+  if (error) {
+    if (!profile) {
+      return (
+        <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-12 text-center">
+          <div className="flex size-10 items-center justify-center rounded-full bg-muted">
+            <Bike className="size-5 text-muted-foreground" aria-hidden="true" />
+          </div>
+          <p className="text-sm font-medium">Completá tu perfil de vendedor</p>
+          <p className="text-xs text-muted-foreground">
+            Necesitás crear tu perfil antes de poder publicar productos.
+          </p>
+        </div>
+      );
+    }
+    return <p className="text-sm text-destructive">Error al cargar productos</p>;
+  }
 
   const products = data?.data ?? [];
   const active = products.filter((p) => p.status !== "archived");
