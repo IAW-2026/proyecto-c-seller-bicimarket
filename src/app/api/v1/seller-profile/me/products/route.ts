@@ -31,6 +31,8 @@ export async function GET(request: NextRequest) {
     category: p.category,
     condition: p.condition,
     price_cents: p.priceCents,
+    discount_percent: p.discountPercent,
+    discounted_price_cents: Math.round(p.priceCents * (1 - p.discountPercent / 100)),
     currency: p.currency,
     weight_grams: p.weightGrams,
     dimensions_cm:

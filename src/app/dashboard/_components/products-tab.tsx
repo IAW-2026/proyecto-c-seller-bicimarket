@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Bike, Lock } from "lucide-react";
+import { Bike, Lock, Tag } from "lucide-react";
 import {
   useMyProducts,
   useCreateProduct,
@@ -356,10 +356,121 @@ function AddImageDialog({
   );
 }
 
+// ── Discount dialog ──────────────────────────────────────────
+
+function DiscountDialog({
+  productId,
+  currentDiscount,
+  open,
+  onOpenChange,
+}: {
+  productId: string;
+  currentDiscount: number;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const [value, setValue] = useState(currentDiscount);
+  const patch = usePatchProduct();
+
+  useEffect(() => {
+    if (open) setValue(currentDiscount);
+  }, [open, currentDiscount]);
+
+  async function handleSubmit() {
+    const pct = Math.round(value);
+    if (!Number.isInteger(pct) || pct < 0 || pct > 99) {
+      toast.error("El descuento debe ser un número entero entre 0 y 99");
+      return;
+    }
+    try {
+      await patch.mutateAsync({ id: productId, data: { discount_percent: pct } });
+      toast.success(pct > 0 ? `Descuento de ${pct}% aplicado` : "Descuento eliminado");
+      onOpenChange(false);
+    } catch {
+      toast.error("No se pudo aplicar el descuento");
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{currentDiscount > 0 ? "Editar descuento" : "Aplicar descuento"}</DialogTitle>
+          <DialogDescription>
+            Ingresá el porcentaje de descuento (1–99). El comprador verá el precio con descuento aplicado.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-1">
+          <Label htmlFor="discount-pct">Descuento (%)</Label>
+          <Input
+            id="discount-pct"
+            type="number"
+            min={1}
+            max={99}
+            value={value || ""}
+            onChange={(e) => setValue(parseInt(e.target.value || "0", 10))}
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button disabled={patch.isPending} onClick={handleSubmit}>
+            {patch.isPending ? "Guardando…" : "Aplicar"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Remove discount confirm dialog ───────────────────────────
+
+function RemoveDiscountDialog({
+  productId,
+  open,
+  onOpenChange,
+}: {
+  productId: string;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const patch = usePatchProduct();
+
+  async function handleConfirm() {
+    try {
+      await patch.mutateAsync({ id: productId, data: { discount_percent: 0 } });
+      toast.success("Descuento eliminado");
+      onOpenChange(false);
+    } catch {
+      toast.error("No se pudo quitar el descuento");
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Quitar descuento</DialogTitle>
+          <DialogDescription>
+            ¿Confirmás que querés quitar el descuento? El precio volverá al valor original.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button variant="destructive" disabled={patch.isPending} onClick={handleConfirm}>
+            {patch.isPending ? "Quitando…" : "Quitar descuento"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Product card ─────────────────────────────────────────────
 
 function ProductCard({ product }: { product: Product }) {
   const [addImageOpen, setAddImageOpen] = useState(false);
+  const [discountOpen, setDiscountOpen] = useState(false);
+  const [removeDiscountOpen, setRemoveDiscountOpen] = useState(false);
   const patch = usePatchProduct();
   const archive = useArchiveProduct();
   const deleteImage = useDeleteProductImage();
@@ -409,9 +520,21 @@ function ProductCard({ product }: { product: Product }) {
       </CardHeader>
 
       <CardContent className="space-y-3">
-        <div className="flex justify-between text-sm">
+        <div className="flex justify-between items-start text-sm">
           <span className="text-muted-foreground">{CONDITION_LABELS[product.condition]}</span>
-          <span className="font-semibold">{formatCents(product.price_cents)}</span>
+          {product.discount_percent > 0 ? (
+            <div className="flex flex-col items-end gap-0.5">
+              <span className="text-xs line-through text-muted-foreground">
+                {formatCents(product.price_cents)}
+              </span>
+              <span className="font-semibold">{formatCents(product.discounted_price_cents)}</span>
+              <Badge variant="secondary" className="text-xs px-1.5">
+                -{product.discount_percent}%
+              </Badge>
+            </div>
+          ) : (
+            <span className="font-semibold">{formatCents(product.price_cents)}</span>
+          )}
         </div>
 
         {/* Images */}
@@ -450,6 +573,29 @@ function ProductCard({ product }: { product: Product }) {
             + Imagen
           </Button>
 
+          {product.status === "active" && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy}
+              onClick={() => setDiscountOpen(true)}
+            >
+              <Tag className="mr-1 size-3" />
+              {product.discount_percent > 0 ? "Editar descuento" : "Descuento"}
+            </Button>
+          )}
+
+          {product.status === "active" && product.discount_percent > 0 && (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              onClick={() => setRemoveDiscountOpen(true)}
+            >
+              Quitar descuento
+            </Button>
+          )}
+
           {product.status === "draft" && (
             <Button size="sm" disabled={busy} onClick={() => handleStatus("active")}>
               Activar
@@ -480,6 +626,17 @@ function ProductCard({ product }: { product: Product }) {
         productId={product.id}
         open={addImageOpen}
         onOpenChange={setAddImageOpen}
+      />
+      <DiscountDialog
+        productId={product.id}
+        currentDiscount={product.discount_percent}
+        open={discountOpen}
+        onOpenChange={setDiscountOpen}
+      />
+      <RemoveDiscountDialog
+        productId={product.id}
+        open={removeDiscountOpen}
+        onOpenChange={setRemoveDiscountOpen}
       />
     </Card>
   );

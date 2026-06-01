@@ -46,8 +46,15 @@ export async function PATCH(
     return Errors.badRequest("Invalid JSON body");
   }
 
-  const { title, description, brand, model, category, condition, price_cents, weight_grams, dimensions_cm, status } =
+  const { title, description, brand, model, category, condition, price_cents, weight_grams, dimensions_cm, status, discount_percent } =
     body as Record<string, unknown>;
+
+  if (discount_percent != null) {
+    const pct = Number(discount_percent);
+    if (!Number.isInteger(pct) || pct < 0 || pct > 99) {
+      return Errors.badRequest("discount_percent must be an integer between 0 and 99");
+    }
+  }
 
   // Validate activation requirements
   if (status === "active") {
@@ -94,6 +101,7 @@ export async function PATCH(
         heightCm: dims.height,
       }),
       ...(status != null && { status: status as never }),
+      ...(discount_percent != null && { discountPercent: Number(discount_percent) }),
     },
     include: { images: { orderBy: { position: "asc" } } },
   });

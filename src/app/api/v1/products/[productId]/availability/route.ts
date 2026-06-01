@@ -21,7 +21,7 @@ export async function GET(
     seller_profile_id: product.sellerProfileId,
     status: product.status,
     available,
-    unit_price_cents: product.priceCents,
+    unit_price_cents: Math.round(product.priceCents * (1 - product.discountPercent / 100)),
     currency: product.currency,
     weight_grams: product.weightGrams,
     dimensions_cm:

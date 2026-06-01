@@ -15,6 +15,8 @@ export type Product = {
   category: "mtb" | "road" | "urban" | "kids" | "bmx" | "parts" | "accessories" | "indumentaria";
   condition: "new" | "used_like_new" | "used_good" | "used_fair";
   price_cents: number;
+  discount_percent: number;
+  discounted_price_cents: number;
   currency: string;
   weight_grams: number;
   dimensions_cm: { length: number; width: number; height: number } | null;
@@ -37,6 +39,7 @@ export type CreateProductInput = {
 
 export type PatchProductInput = Partial<CreateProductInput> & {
   status?: Product["status"];
+  discount_percent?: number;
 };
 
 type PaginatedProducts = {

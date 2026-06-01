@@ -183,6 +183,7 @@ Fuente de verdad de: catálogo (`product`, precio, peso), perfil de vendedor, su
 | `category` | enum `mtb` \| `road` \| `urban` \| `kids` \| `bmx` \| `parts` \| `accessories` \| `indumentaria` | |
 | `condition` | enum `new` \| `used_like_new` \| `used_good` \| `used_fair` | |
 | `price_cents` | int | |
+| `discount_percent` | int | 0–99; default 0. El precio efectivo se calcula como `round(price_cents * (1 - discount_percent / 100))` y nunca se persiste |
 | `currency` | string | |
 | `weight_grams` | int | 🆕 obligatorio para activar |
 | `length_cm`, `width_cm`, `height_cm` | int | 🆕 dimensiones |

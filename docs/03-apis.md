@@ -542,6 +542,8 @@ Lo consume Shipping para cotizar y crear el envío.
 
 **Querystring**: `?q=trek&category=mtb&brand=trek&min_price_cents=10000000&max_price_cents=100000000&seller_id=slp_01H…&sort=-created_at&page=1&limit=20`.
 
+`category` válidos: `mtb` | `road` | `urban` | `kids` | `bmx` | `parts` | `accessories` | `indumentaria`.
+
 **Response 200**
 
 ```json
@@ -555,6 +557,8 @@ Lo consume Shipping para cotizar y crear el envío.
       "model": "Marlin 5",
       "category": "mtb",
       "price_cents": 65000000,
+      "discount_percent": 20,
+      "discounted_price_cents": 52000000,
       "currency": "ARS",
       "weight_grams": 14500,
       "dimensions_cm": { "length": 180, "width": 60, "height": 110 },
@@ -583,6 +587,8 @@ Lo consume Shipping para cotizar y crear el envío.
   "category": "mtb",
   "condition": "new",
   "price_cents": 65000000,
+  "discount_percent": 20,
+  "discounted_price_cents": 52000000,
   "currency": "ARS",
   "weight_grams": 14500,
   "dimensions_cm": { "length": 180, "width": 60, "height": 110 },
@@ -615,7 +621,7 @@ Confirma que el producto sigue publicado y devuelve los datos vigentes que neces
   "seller_profile_id": "slp_01H…",
   "status": "active",
   "available": true,
-  "unit_price_cents": 65000000,
+  "unit_price_cents": 52000000,
   "currency": "ARS",
   "weight_grams": 14500,
   "dimensions_cm": { "length": 180, "width": 60, "height": 110 },
@@ -624,6 +630,8 @@ Confirma que el producto sigue publicado y devuelve los datos vigentes que neces
 ```
 
 `available` es `true` si y solo si `status=active` y el `seller_profile` está `verified`. Cuando es `false`, el producto no se puede agregar al carrito y Buyer App devuelve `409 PRODUCT_NOT_ACTIVE`.
+
+`unit_price_cents` es el **precio efectivo con descuento aplicado**: `round(price_cents * (1 - discount_percent / 100))`. Cuando no hay descuento (`discount_percent=0`), coincide con `price_cents`. Este es el valor que Buyer App snapshottea al carrito y a la orden.
 
 ---
 
@@ -661,12 +669,16 @@ Confirma que el producto sigue publicado y devuelve los datos vigentes que neces
 ```json
 {
   "price_cents": 62000000,
+  "discount_percent": 20,
   "status": "active"
 }
 ```
 
+`discount_percent`: entero 0–99. Solo aplicable a productos `active`. Usar `0` para quitar el descuento. El precio efectivo que reciben otras apps se calcula como `round(price_cents * (1 - discount_percent / 100))`.
+
 **Errores**:
 
+- `400 BAD_REQUEST` si `discount_percent` no es un entero entre 0 y 99.
 - `422 VALIDATION_FAILED` con `details: { weight_grams: "required", images: "at least 1" }` si se intenta `status=active` sin requisitos.
 
 ### `DELETE /api/v1/products/{productId}`

@@ -45,6 +45,7 @@ model Product {
   category        ProductCategory
   condition       ProductCondition
   priceCents      Int              @map("price_cents")
+  discountPercent Int              @default(0) @map("discount_percent")
   currency        String           @default("ARS")
   weightGrams     Int              @map("weight_grams")
   lengthCm        Int?             @map("length_cm")
