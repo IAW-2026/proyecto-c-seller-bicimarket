@@ -1,4 +1,4 @@
-import { currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -10,33 +10,23 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const user = await currentUser();
-  if (!user) redirect("/sign-in");
+  const { userId, sessionClaims } = await auth();
+  if (!userId) redirect("/sign-in");
 
-  const [profile] = await Promise.all([
-    prisma.sellerProfile.findUnique({
-      where: { clerkUserId: user.id },
-      select: { verificationStatus: true },
-    }),
-  ]);
+  const profile = await prisma.sellerProfile.findUnique({
+    where: { clerkUserId: userId },
+    select: { verificationStatus: true },
+  });
 
   if (profile?.verificationStatus === "suspended") {
     redirect("/suspended");
   }
 
-  const isAdmin = user.publicMetadata?.admin === true;
-  const name = [user.firstName, user.lastName].filter(Boolean).join(" ") || "Usuario";
-  const email = user.emailAddresses[0]?.emailAddress ?? "";
-  const initials =
-    [user.firstName, user.lastName]
-      .filter(Boolean)
-      .map((n) => n![0])
-      .join("")
-      .toUpperCase() || "?";
+  const isAdmin = (sessionClaims?.publicMetadata as Record<string, unknown>)?.admin === true;
 
   return (
     <SidebarProvider>
-      <AppSidebar user={{ name, email, initials }} isAdmin={isAdmin} />
+      <AppSidebar isAdmin={isAdmin} />
       <SidebarInset>
         <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border/60 bg-card/80 backdrop-blur-md sticky top-0 z-30 px-4">
           <SidebarTrigger className="-ml-1" />

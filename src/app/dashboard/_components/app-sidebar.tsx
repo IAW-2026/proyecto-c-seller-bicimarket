@@ -25,11 +25,10 @@ const NAV_ITEMS = [
 ];
 
 type AppSidebarProps = {
-  user: { name: string; email: string; initials: string };
   isAdmin: boolean;
 } & React.ComponentProps<typeof Sidebar>;
 
-export function AppSidebar({ user, isAdmin, ...props }: AppSidebarProps) {
+export function AppSidebar({ isAdmin, ...props }: AppSidebarProps) {
   const pathname = usePathname();
 
   return (
@@ -89,7 +88,7 @@ export function AppSidebar({ user, isAdmin, ...props }: AppSidebarProps) {
       </SidebarContent>
 
       <SidebarFooter>
-        <NavUser user={user} />
+        <NavUser />
       </SidebarFooter>
     </Sidebar>
   );

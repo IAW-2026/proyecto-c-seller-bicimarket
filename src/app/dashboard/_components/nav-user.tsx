@@ -1,6 +1,6 @@
 "use client";
 
-import { useClerk } from "@clerk/nextjs";
+import { useClerk, useUser } from "@clerk/nextjs";
 import { ChevronsUpDown, LogOut } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -19,13 +19,19 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 
-type NavUserProps = {
-  user: { name: string; email: string; initials: string };
-};
-
-export function NavUser({ user }: NavUserProps) {
+export function NavUser() {
   const { isMobile } = useSidebar();
   const { signOut } = useClerk();
+  const { user: clerkUser } = useUser();
+
+  const name = [clerkUser?.firstName, clerkUser?.lastName].filter(Boolean).join(" ") || "Usuario";
+  const email = clerkUser?.emailAddresses[0]?.emailAddress ?? "";
+  const initials =
+    [clerkUser?.firstName, clerkUser?.lastName]
+      .filter(Boolean)
+      .map((n) => (n as string)[0])
+      .join("")
+      .toUpperCase() || "?";
 
   return (
     <SidebarMenu>
@@ -41,12 +47,12 @@ export function NavUser({ user }: NavUserProps) {
           >
             <Avatar className="h-8 w-8 rounded-lg">
               <AvatarFallback className="rounded-lg bg-primary text-primary-foreground text-xs font-semibold">
-                {user.initials}
+                {initials}
               </AvatarFallback>
             </Avatar>
             <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-semibold">{user.name}</span>
-              <span className="truncate text-xs">{user.email}</span>
+              <span className="truncate font-semibold">{name}</span>
+              <span className="truncate text-xs">{email}</span>
             </div>
             <ChevronsUpDown className="ml-auto size-4" />
           </DropdownMenuTrigger>
@@ -62,12 +68,12 @@ export function NavUser({ user }: NavUserProps) {
                 <div className="flex items-center gap-2 px-1 py-1.5">
                   <Avatar className="h-8 w-8 rounded-lg">
                     <AvatarFallback className="rounded-lg bg-primary text-primary-foreground text-xs font-semibold">
-                      {user.initials}
+                      {initials}
                     </AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold">{user.name}</span>
-                    <span className="truncate text-xs text-muted-foreground">{user.email}</span>
+                    <span className="truncate font-semibold">{name}</span>
+                    <span className="truncate text-xs text-muted-foreground">{email}</span>
                   </div>
                 </div>
               </DropdownMenuLabel>
