@@ -69,7 +69,10 @@ export function useAcceptOrder() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (salesOrderId: string) => api.post(`/v1/sales-orders/${salesOrderId}/accept`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["sales-orders"] }),
+    onSuccess: (_, salesOrderId) => {
+      qc.invalidateQueries({ queryKey: ["sales-orders"] });
+      qc.invalidateQueries({ queryKey: ["sales-order", salesOrderId] });
+    },
   });
 }
 
@@ -78,7 +81,10 @@ export function useRejectOrder() {
   return useMutation({
     mutationFn: ({ salesOrderId, reason }: { salesOrderId: string; reason: string }) =>
       api.post(`/v1/sales-orders/${salesOrderId}/reject`, { reason }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["sales-orders"] }),
+    onSuccess: (_, { salesOrderId }) => {
+      qc.invalidateQueries({ queryKey: ["sales-orders"] });
+      qc.invalidateQueries({ queryKey: ["sales-order", salesOrderId] });
+    },
   });
 }
 
@@ -92,6 +98,9 @@ export function usePrepareOrder() {
       salesOrderId: string;
       fulfillment_status: "preparing" | "ready_to_ship";
     }) => api.patch(`/v1/sales-orders/${salesOrderId}/prepare`, { fulfillment_status }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["sales-orders"] }),
+    onSuccess: (_, { salesOrderId }) => {
+      qc.invalidateQueries({ queryKey: ["sales-orders"] });
+      qc.invalidateQueries({ queryKey: ["sales-order", salesOrderId] });
+    },
   });
 }

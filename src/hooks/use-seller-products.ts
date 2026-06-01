@@ -67,7 +67,10 @@ export function usePatchProduct() {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: PatchProductInput }) =>
       api.patch(`/v1/products/${id}`, data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["my-products"] }),
+    onSuccess: (_, { id }) => {
+      qc.invalidateQueries({ queryKey: ["my-products"] });
+      qc.invalidateQueries({ queryKey: ["product", id] });
+    },
   });
 }
 
@@ -75,7 +78,10 @@ export function useArchiveProduct() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete(`/v1/products/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["my-products"] }),
+    onSuccess: (_, id) => {
+      qc.invalidateQueries({ queryKey: ["my-products"] });
+      qc.invalidateQueries({ queryKey: ["product", id] });
+    },
   });
 }
 
