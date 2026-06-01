@@ -13,6 +13,7 @@ type SeedProduct = {
   model: string
   category: 'mtb' | 'road' | 'urban' | 'kids' | 'bmx' | 'parts' | 'accessories' | 'indumentaria'
   condition: 'new' | 'used_like_new' | 'used_good' | 'used_fair'
+  status: 'active' | 'draft' | 'paused' | 'archived'
   priceCents: number
   weightGrams: number
   lengthCm: number
@@ -577,19 +578,25 @@ async function main() {
   console.log(`  Seller: ${seller.displayName} (${seller.verificationStatus})`)
 
   let created = 0
-  let skipped = 0
+  let updated = 0
 
   for (const { images, ...productData } of products) {
     const exists = await prisma.product.findUnique({ where: { id: productData.id } })
 
     if (exists) {
-      skipped++
+      await prisma.product.update({
+        where: { id: productData.id },
+        data: { status: 'active' },
+      })
+      console.log(`  [UPDATE] ${productData.title}`)
+      updated++
       continue
     }
 
     await prisma.product.create({
       data: {
         ...productData,
+        status: 'active',
         sellerProfileId: seller.id,
         images: { create: images },
       },
@@ -601,7 +608,7 @@ async function main() {
 
   const total = products.length
   console.log(
-    `\nDone. ${created} products created, ${skipped} skipped (already exist). Total: ${total} across 8 categories.`,
+    `\nDone. ${created} created, ${updated} updated to active. Total: ${total} across 8 categories.`,
   )
 }
 
