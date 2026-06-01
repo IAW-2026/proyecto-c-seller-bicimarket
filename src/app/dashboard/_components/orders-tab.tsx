@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
   useAcceptOrder,
@@ -127,6 +128,10 @@ function OrderRow({ order }: { order: SalesOrder }) {
           </Badge>
         </TableCell>
         <TableCell>
+          <div className="flex gap-1.5 flex-wrap">
+            <Link href={`/dashboard/orders/${order.id}`}>
+              <Button size="sm" variant="outline">Ver</Button>
+            </Link>
           {order.fulfillment_status === "pending" && (
             <div className="flex gap-1.5">
               <Button size="sm" disabled={busy} onClick={handleAccept}>
@@ -156,6 +161,7 @@ function OrderRow({ order }: { order: SalesOrder }) {
           {["delivered", "rejected", "cancelled"].includes(order.fulfillment_status) && (
             <span className="text-xs text-muted-foreground">—</span>
           )}
+          </div>
         </TableCell>
       </TableRow>
 

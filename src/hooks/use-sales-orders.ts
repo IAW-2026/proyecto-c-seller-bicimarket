@@ -54,6 +54,17 @@ export function useSalesOrders(status?: string) {
   });
 }
 
+export function useSalesOrder(id: string) {
+  return useQuery<SalesOrder>({
+    queryKey: ["sales-order", id],
+    queryFn: async () => {
+      const res = await api.get(`/v1/sales-orders/${id}`);
+      return res.data as SalesOrder;
+    },
+    enabled: !!id,
+  });
+}
+
 export function useAcceptOrder() {
   const qc = useQueryClient();
   return useMutation({

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Bike, Lock, Clock } from "lucide-react";
 import {
@@ -399,6 +400,9 @@ function ProductRow({ product }: { product: Product }) {
         </TableCell>
         <TableCell>
           <div className="flex gap-1.5 flex-wrap">
+            <Link href={`/dashboard/products/${product.id}`}>
+              <Button size="sm" variant="outline">Ver</Button>
+            </Link>
             <Button size="sm" variant="outline" disabled={busy} onClick={() => setAddImageOpen(true)}>
               + Imagen
             </Button>

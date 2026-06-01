@@ -94,6 +94,17 @@ export function useAddProductImage() {
   });
 }
 
+export function useProduct(id: string) {
+  return useQuery<Product & { seller_display_name: string }>({
+    queryKey: ["product", id],
+    queryFn: async () => {
+      const res = await api.get(`/v1/products/${id}`);
+      return res.data as Product & { seller_display_name: string };
+    },
+    enabled: !!id,
+  });
+}
+
 export function useDeleteProductImage() {
   const qc = useQueryClient();
   return useMutation({
