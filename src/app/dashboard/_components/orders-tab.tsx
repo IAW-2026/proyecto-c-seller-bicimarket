@@ -13,7 +13,7 @@ import { useSellerProfile } from "@/hooks/use-seller-profile";
 import { Package, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -22,12 +22,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
 import { formatCents } from "@/lib/format";
 
-// ── Status badge ────────────────────────────────────────────
+// ── Status maps ──────────────────────────────────────────────
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "Pendiente",
@@ -40,10 +46,7 @@ const STATUS_LABEL: Record<string, string> = {
   cancelled: "Cancelado",
 };
 
-const STATUS_VARIANT: Record<
-  string,
-  "default" | "secondary" | "destructive" | "outline"
-> = {
+const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   pending: "secondary",
   accepted: "default",
   preparing: "default",
@@ -54,16 +57,15 @@ const STATUS_VARIANT: Record<
   cancelled: "destructive",
 };
 
-// ── Order card ───────────────────────────────────────────────
+// ── Order row ────────────────────────────────────────────────
 
-function OrderCard({ order }: { order: SalesOrder }) {
+function OrderRow({ order }: { order: SalesOrder }) {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
 
   const accept = useAcceptOrder();
   const reject = useRejectOrder();
   const prepare = usePrepareOrder();
-
   const busy = accept.isPending || reject.isPending || prepare.isPending;
 
   async function handleAccept() {
@@ -89,129 +91,74 @@ function OrderCard({ order }: { order: SalesOrder }) {
   async function handlePrepare(status: "preparing" | "ready_to_ship") {
     try {
       await prepare.mutateAsync({ salesOrderId: order.id, fulfillment_status: status });
-      const msg =
-        status === "ready_to_ship"
-          ? "Pedido marcado como listo — se notificó a logística"
-          : "Preparación iniciada";
-      toast.success(msg);
+      toast.success(
+        status === "ready_to_ship" ? "Pedido marcado como listo — se notificó a logística" : "Preparación iniciada"
+      );
     } catch {
       toast.error("No se pudo actualizar el pedido");
     }
   }
 
-  const addr = order.shipping_address_snapshot;
+  const itemsSummary =
+    order.items.length === 1
+      ? order.items[0].product_name_snapshot.length > 28
+        ? order.items[0].product_name_snapshot.slice(0, 28) + "…"
+        : order.items[0].product_name_snapshot
+      : `${order.items.length} productos`;
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <CardTitle className="text-sm font-mono text-muted-foreground">
-              {order.id.slice(0, 16)}…
-            </CardTitle>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Orden {order.order_id.slice(0, 12)}… · {new Date(order.created_at).toLocaleDateString("es-AR")}
-            </p>
-          </div>
+    <>
+      <TableRow>
+        <TableCell>
+          <p className="font-mono text-xs leading-tight">{order.id.slice(0, 14)}…</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {new Date(order.created_at).toLocaleDateString("es-AR")}
+          </p>
+        </TableCell>
+        <TableCell className="text-sm text-muted-foreground max-w-48 truncate">
+          {itemsSummary}
+        </TableCell>
+        <TableCell className="font-semibold text-sm">
+          {formatCents(order.total_cents)}
+        </TableCell>
+        <TableCell>
           <Badge variant={STATUS_VARIANT[order.fulfillment_status] ?? "outline"}>
             {STATUS_LABEL[order.fulfillment_status] ?? order.fulfillment_status}
           </Badge>
-        </div>
-      </CardHeader>
-
-      <CardContent className="space-y-3">
-        {/* Items */}
-        <ul className="space-y-1 text-sm">
-          {order.items.map((item) => (
-            <li key={item.id} className="flex justify-between">
-              <span className="text-muted-foreground">
-                {item.quantity}× {item.product_name_snapshot}
-              </span>
-              <span className="font-medium">{formatCents(item.unit_price_cents * item.quantity)}</span>
-            </li>
-          ))}
-        </ul>
-
-        <Separator />
-
-        {/* Totals */}
-        <div className="space-y-1 text-sm">
-          <div className="flex justify-between text-muted-foreground">
-            <span>Subtotal productos</span>
-            <span>{formatCents(order.items_subtotal_cents)}</span>
-          </div>
-          <div className="flex justify-between text-muted-foreground">
-            <span>Costo de envío</span>
-            <span>{formatCents(order.shipping_cost_cents)}</span>
-          </div>
-          <div className="flex justify-between font-semibold">
-            <span>Total</span>
-            <span>{formatCents(order.total_cents)}</span>
-          </div>
-        </div>
-
-        {/* Shipping address */}
-        {addr && (
-          <p className="text-xs text-muted-foreground">
-            Envío a: {addr.street} {addr.number}, {addr.city}, {addr.province}
-          </p>
-        )}
-
-        {/* Action buttons — depend on current fulfillment_status */}
-        {order.fulfillment_status === "pending" && (
-          <div className="flex gap-2 pt-1">
-            <Button
-              size="sm"
-              className="flex-1"
-              disabled={busy}
-              onClick={handleAccept}
-            >
-              Aceptar pedido
+        </TableCell>
+        <TableCell>
+          {order.fulfillment_status === "pending" && (
+            <div className="flex gap-1.5">
+              <Button size="sm" disabled={busy} onClick={handleAccept}>
+                Aceptar
+              </Button>
+              <Button size="sm" variant="destructive" disabled={busy} onClick={() => setRejectOpen(true)}>
+                Rechazar
+              </Button>
+            </div>
+          )}
+          {order.fulfillment_status === "accepted" && (
+            <Button size="sm" disabled={busy} onClick={() => handlePrepare("preparing")}>
+              Iniciar preparación
             </Button>
-            <Button
-              size="sm"
-              variant="destructive"
-              className="flex-1"
-              disabled={busy}
-              onClick={() => setRejectOpen(true)}
-            >
-              Rechazar
+          )}
+          {order.fulfillment_status === "preparing" && (
+            <Button size="sm" disabled={busy} onClick={() => handlePrepare("ready_to_ship")}>
+              Listo para envío
             </Button>
-          </div>
-        )}
+          )}
+          {order.fulfillment_status === "ready_to_ship" && (
+            <span className="text-xs text-muted-foreground">Esperando retiro</span>
+          )}
+          {order.fulfillment_status === "handed_over" && (
+            <span className="text-xs text-muted-foreground">En camino al comprador</span>
+          )}
+          {["delivered", "rejected", "cancelled"].includes(order.fulfillment_status) && (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </TableCell>
+      </TableRow>
 
-        {order.fulfillment_status === "accepted" && (
-          <Button
-            size="sm"
-            className="w-full"
-            disabled={busy}
-            onClick={() => handlePrepare("preparing")}
-          >
-            Iniciar preparación
-          </Button>
-        )}
-
-        {order.fulfillment_status === "preparing" && (
-          <Button
-            size="sm"
-            className="w-full"
-            disabled={busy}
-            onClick={() => handlePrepare("ready_to_ship")}
-          >
-            Listo para envío — notificar logística
-          </Button>
-        )}
-
-        {["ready_to_ship", "handed_over", "delivered"].includes(order.fulfillment_status) && (
-          <p className="text-center text-xs text-muted-foreground pt-1">
-            {order.fulfillment_status === "ready_to_ship" && "Esperando retiro por logística"}
-            {order.fulfillment_status === "handed_over" && "En camino al comprador"}
-            {order.fulfillment_status === "delivered" && "Entregado al comprador"}
-          </p>
-        )}
-      </CardContent>
-
-      {/* Reject dialog */}
       <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
         <DialogContent>
           <DialogHeader>
@@ -231,60 +178,24 @@ function OrderCard({ order }: { order: SalesOrder }) {
             <Button variant="outline" onClick={() => setRejectOpen(false)}>
               Cancelar
             </Button>
-            <Button
-              variant="destructive"
-              disabled={busy}
-              onClick={handleReject}
-            >
+            <Button variant="destructive" disabled={busy} onClick={handleReject}>
               Confirmar rechazo
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Card>
+    </>
   );
 }
 
 // ── Tab ──────────────────────────────────────────────────────
-
-function OrdersSkeletonGrid() {
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      {Array.from({ length: 3 }).map((_, i) => (
-        <Card key={i}>
-          <CardHeader className="pb-2">
-            <div className="flex justify-between">
-              <div className="space-y-2">
-                <Skeleton className="h-3 w-36" />
-                <Skeleton className="h-3 w-44" />
-              </div>
-              <Skeleton className="h-5 w-20 rounded-full" />
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Skeleton className="h-3 w-full" />
-            <Skeleton className="h-3 w-3/4" />
-            <Separator />
-            <Skeleton className="h-3 w-1/2" />
-            <Skeleton className="h-8 w-full rounded-md" />
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  );
-}
 
 export function OrdersTab() {
   const { data: profile, isLoading: profileLoading } = useSellerProfile();
   const { data, isLoading, error } = useSalesOrders();
 
   if (isLoading || profileLoading) {
-    return (
-      <div className="space-y-6">
-        <h3 className="font-heading text-base font-semibold">Pedidos activos</h3>
-        <OrdersSkeletonGrid />
-      </div>
-    );
+    return <p className="text-sm text-muted-foreground">Cargando pedidos…</p>;
   }
 
   if (!profile) {
@@ -327,38 +238,82 @@ export function OrdersTab() {
     ["rejected", "cancelled", "delivered"].includes(o.fulfillment_status)
   );
 
+  const stats = [
+    { label: "Nuevos", value: orders.filter((o) => o.fulfillment_status === "pending").length },
+    {
+      label: "En preparación",
+      value: orders.filter((o) => ["accepted", "preparing"].includes(o.fulfillment_status)).length,
+    },
+    {
+      label: "Listos para envío",
+      value: orders.filter((o) => o.fulfillment_status === "ready_to_ship").length,
+    },
+    { label: "Entregados", value: orders.filter((o) => o.fulfillment_status === "delivered").length },
+  ];
+
   return (
     <div className="space-y-6">
-      <section>
-        <h3 className="mb-3 font-heading text-base font-semibold">
-          Pedidos activos ({active.length})
-        </h3>
-        {active.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-12 text-center">
-            <div className="flex size-10 items-center justify-center rounded-full bg-muted">
-              <Package className="size-5 text-muted-foreground" aria-hidden="true" />
-            </div>
-            <p className="text-sm text-muted-foreground">No hay pedidos activos.</p>
-          </div>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {active.map((o) => (
-              <OrderCard key={o.id} order={o} />
-            ))}
-          </div>
-        )}
-      </section>
+      <h3 className="font-heading text-base font-semibold">Pedidos</h3>
 
-      {closed.length > 0 && (
-        <section>
-          <h3 className="mb-3 font-heading text-base font-semibold text-muted-foreground">
-            Historial
-          </h3>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {closed.map((o) => (
-              <OrderCard key={o.id} order={o} />
-            ))}
+      {/* Stat boxes */}
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+        {stats.map((s) => (
+          <Card key={s.label}>
+            <CardContent className="px-4 py-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">{s.label}</p>
+              <p className="mt-1 font-mono text-2xl font-semibold">{s.value}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Active orders table */}
+      {active.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-12 text-center">
+          <div className="flex size-10 items-center justify-center rounded-full bg-muted">
+            <Package className="size-5 text-muted-foreground" aria-hidden="true" />
           </div>
+          <p className="text-sm text-muted-foreground">No hay pedidos activos.</p>
+        </div>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Pedido</TableHead>
+              <TableHead>Producto(s)</TableHead>
+              <TableHead>Total</TableHead>
+              <TableHead>Estado</TableHead>
+              <TableHead>Acción</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {active.map((o) => (
+              <OrderRow key={o.id} order={o} />
+            ))}
+          </TableBody>
+        </Table>
+      )}
+
+      {/* Closed orders table */}
+      {closed.length > 0 && (
+        <section className="space-y-3">
+          <h3 className="font-heading text-sm font-semibold text-muted-foreground">Historial</h3>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Pedido</TableHead>
+                <TableHead>Producto(s)</TableHead>
+                <TableHead>Total</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {closed.map((o) => (
+                <OrderRow key={o.id} order={o} />
+              ))}
+            </TableBody>
+          </Table>
         </section>
       )}
     </div>

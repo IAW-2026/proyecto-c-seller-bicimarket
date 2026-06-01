@@ -2,22 +2,20 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import Image from "next/image";
-import { Bike, Lock } from "lucide-react";
+import { Bike, Lock, Clock } from "lucide-react";
 import {
   useMyProducts,
   useCreateProduct,
   usePatchProduct,
   useArchiveProduct,
   useAddProductImage,
-  useDeleteProductImage,
   type Product,
   type CreateProductInput,
 } from "@/hooks/use-seller-products";
 import { useSellerProfile } from "@/hooks/use-seller-profile";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -36,7 +34,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { formatCents } from "@/lib/format";
 
 // ── Constants ────────────────────────────────────────────────
@@ -54,9 +59,9 @@ const CATEGORY_LABELS: Record<Product["category"], string> = {
 
 const CONDITION_LABELS: Record<Product["condition"], string> = {
   new: "Nuevo",
-  used_like_new: "Usado — como nuevo",
-  used_good: "Usado — buen estado",
-  used_fair: "Usado — estado regular",
+  used_like_new: "Como nuevo",
+  used_good: "Buen estado",
+  used_fair: "Estado regular",
 };
 
 const STATUS_VARIANT: Record<Product["status"], "default" | "secondary" | "destructive" | "outline"> = {
@@ -73,7 +78,7 @@ const STATUS_LABELS: Record<Product["status"], string> = {
   archived: "Archivado",
 };
 
-// ── Create product form ──────────────────────────────────────
+// ── Create product dialog ────────────────────────────────────
 
 const EMPTY_FORM: CreateProductInput = {
   title: "",
@@ -175,10 +180,7 @@ function CreateProductDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label htmlFor="product-category">Categoría</Label>
-              <Select
-                value={form.category}
-                onValueChange={(v) => set("category", v as Product["category"])}
-              >
+              <Select value={form.category} onValueChange={(v) => set("category", v as Product["category"])}>
                 <SelectTrigger id="product-category"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {(Object.entries(CATEGORY_LABELS) as [Product["category"], string][]).map(([v, l]) => (
@@ -189,10 +191,7 @@ function CreateProductDialog({
             </div>
             <div className="space-y-1">
               <Label htmlFor="product-condition">Condición</Label>
-              <Select
-                value={form.condition}
-                onValueChange={(v) => set("condition", v as Product["condition"])}
-              >
+              <Select value={form.condition} onValueChange={(v) => set("condition", v as Product["condition"])}>
                 <SelectTrigger id="product-condition"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {(Object.entries(CONDITION_LABELS) as [Product["condition"], string][]).map(([v, l]) => (
@@ -283,7 +282,6 @@ function AddImageDialog({
   const inputRef = useRef<HTMLInputElement>(null);
   const add = useAddProductImage();
 
-  // Revoke object URL to avoid memory leaks
   useEffect(() => {
     return () => { if (preview) URL.revokeObjectURL(preview); };
   }, [preview]);
@@ -329,16 +327,10 @@ function AddImageDialog({
             className="cursor-pointer"
             onChange={handleFileChange}
           />
-
           {preview && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={preview}
-              alt="Vista previa"
-              className="max-h-48 w-full rounded-md border object-contain"
-            />
+            <img src={preview} alt="Vista previa" className="max-h-48 w-full rounded-md border object-contain" />
           )}
-
           {file && (
             <p className="text-xs text-muted-foreground">
               {file.name} · {(file.size / 1024).toFixed(0)} KB
@@ -357,15 +349,13 @@ function AddImageDialog({
   );
 }
 
-// ── Product card ─────────────────────────────────────────────
+// ── Product row ──────────────────────────────────────────────
 
-function ProductCard({ product }: { product: Product }) {
+function ProductRow({ product }: { product: Product }) {
   const [addImageOpen, setAddImageOpen] = useState(false);
   const patch = usePatchProduct();
   const archive = useArchiveProduct();
-  const deleteImage = useDeleteProductImage();
-
-  const busy = patch.isPending || archive.isPending || deleteImage.isPending;
+  const busy = patch.isPending || archive.isPending;
 
   async function handleStatus(status: Product["status"]) {
     try {
@@ -386,104 +376,75 @@ function ProductCard({ product }: { product: Product }) {
     }
   }
 
-  async function handleDeleteImage(imageId: string) {
-    try {
-      await deleteImage.mutateAsync({ productId: product.id, imageId });
-      toast.success("Imagen eliminada");
-    } catch {
-      toast.error("No se pudo eliminar la imagen");
-    }
-  }
-
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <CardTitle className="truncate text-sm">{product.title}</CardTitle>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {product.brand} · {product.model} · {CATEGORY_LABELS[product.category]}
-            </p>
-          </div>
+    <>
+      <TableRow>
+        <TableCell>
+          <p className="font-medium text-sm leading-tight">{product.title}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {product.brand} · {product.model} · {CATEGORY_LABELS[product.category]}
+          </p>
+        </TableCell>
+        <TableCell className="text-sm text-muted-foreground">
+          {CONDITION_LABELS[product.condition]}
+        </TableCell>
+        <TableCell className="text-right font-semibold text-sm">
+          {formatCents(product.price_cents)}
+        </TableCell>
+        <TableCell>
           <Badge variant={STATUS_VARIANT[product.status]}>{STATUS_LABELS[product.status]}</Badge>
-        </div>
-      </CardHeader>
-
-      <CardContent className="space-y-3">
-        <div className="flex justify-between items-start text-sm">
-          <span className="text-muted-foreground">{CONDITION_LABELS[product.condition]}</span>
-          <span className="font-semibold">{formatCents(product.price_cents)}</span>
-        </div>
-
-        {/* Images */}
-        {product.images.length > 0 && (
-          <div className="flex gap-2 flex-wrap">
-            {product.images.map((img) => (
-              <div key={img.id} className="relative group">
-                <Image
-                  src={img.url}
-                  alt={`Imagen de ${product.title}`}
-                  width={64}
-                  height={64}
-                  className="h-16 w-16 rounded object-cover border"
-                />
-                <button
-                  onClick={() => handleDeleteImage(img.id)}
-                  disabled={busy}
-                  className="absolute inset-0 flex items-center justify-center bg-black/60 text-white text-xs opacity-0 group-hover:opacity-100 rounded transition-opacity"
-                >
-                  Eliminar
-                </button>
-              </div>
-            ))}
+        </TableCell>
+        <TableCell className="text-xs text-muted-foreground text-center">
+          {product.images.length}
+        </TableCell>
+        <TableCell>
+          <div className="flex gap-1.5 flex-wrap">
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => setAddImageOpen(true)}>
+              + Imagen
+            </Button>
+            {product.status === "draft" && (
+              <Button size="sm" disabled={busy} onClick={() => handleStatus("active")}>
+                Activar
+              </Button>
+            )}
+            {product.status === "active" && (
+              <Button size="sm" variant="outline" disabled={busy} onClick={() => handleStatus("paused")}>
+                Pausar
+              </Button>
+            )}
+            {product.status === "paused" && (
+              <Button size="sm" disabled={busy} onClick={() => handleStatus("active")}>
+                Reactivar
+              </Button>
+            )}
+            {product.status !== "archived" && (
+              <Button size="sm" variant="destructive" disabled={busy} onClick={handleArchive}>
+                Archivar
+              </Button>
+            )}
           </div>
-        )}
+        </TableCell>
+      </TableRow>
 
-        <Separator />
+      <AddImageDialog productId={product.id} open={addImageOpen} onOpenChange={setAddImageOpen} />
+    </>
+  );
+}
 
-        {/* Actions */}
-        <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={busy}
-            onClick={() => setAddImageOpen(true)}
-          >
-            + Imagen
-          </Button>
+// ── Shared table header ──────────────────────────────────────
 
-          {product.status === "draft" && (
-            <Button size="sm" disabled={busy} onClick={() => handleStatus("active")}>
-              Activar
-            </Button>
-          )}
-
-          {product.status === "active" && (
-            <Button size="sm" variant="outline" disabled={busy} onClick={() => handleStatus("paused")}>
-              Pausar
-            </Button>
-          )}
-
-          {product.status === "paused" && (
-            <Button size="sm" disabled={busy} onClick={() => handleStatus("active")}>
-              Reactivar
-            </Button>
-          )}
-
-          {product.status !== "archived" && (
-            <Button size="sm" variant="destructive" disabled={busy} onClick={handleArchive}>
-              Archivar
-            </Button>
-          )}
-        </div>
-      </CardContent>
-
-      <AddImageDialog
-        productId={product.id}
-        open={addImageOpen}
-        onOpenChange={setAddImageOpen}
-      />
-    </Card>
+function ProductTableHeader() {
+  return (
+    <TableHeader>
+      <TableRow>
+        <TableHead>Producto</TableHead>
+        <TableHead>Condición</TableHead>
+        <TableHead className="text-right">Precio</TableHead>
+        <TableHead>Estado</TableHead>
+        <TableHead className="text-center">Imgs</TableHead>
+        <TableHead>Acciones</TableHead>
+      </TableRow>
+    </TableHeader>
   );
 }
 
@@ -518,12 +479,18 @@ export function ProductsTab() {
   const active = products.filter((p) => p.status !== "archived");
   const archived = products.filter((p) => p.status === "archived");
 
+  const stats = [
+    { label: "Activos", value: products.filter((p) => p.status === "active").length },
+    { label: "Borradores", value: products.filter((p) => p.status === "draft").length },
+    { label: "Pausados", value: products.filter((p) => p.status === "paused").length },
+    { label: "Archivados", value: archived.length },
+  ];
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <h3 className="font-heading text-base font-semibold">
-          Catálogo ({active.length})
-        </h3>
+        <h3 className="font-heading text-base font-semibold">Catálogo</h3>
         {isVerified ? (
           <Button size="sm" onClick={() => setCreateOpen(true)}>
             + Nuevo producto
@@ -536,6 +503,19 @@ export function ProductsTab() {
         )}
       </div>
 
+      {/* Stat boxes */}
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+        {stats.map((s) => (
+          <Card key={s.label}>
+            <CardContent className="px-4 py-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">{s.label}</p>
+              <p className="mt-1 font-mono text-2xl font-semibold">{s.value}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Active products table */}
       {active.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-12 text-center">
           <div className="flex size-10 items-center justify-center rounded-full bg-muted">
@@ -548,23 +528,28 @@ export function ProductsTab() {
           </p>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {active.map((p) => (
-            <ProductCard key={p.id} product={p} />
-          ))}
-        </div>
+        <Table>
+          <ProductTableHeader />
+          <TableBody>
+            {active.map((p) => (
+              <ProductRow key={p.id} product={p} />
+            ))}
+          </TableBody>
+        </Table>
       )}
 
+      {/* Archived products table */}
       {archived.length > 0 && (
-        <section>
-          <h3 className="mb-3 font-heading text-base font-semibold text-muted-foreground">
-            Archivados
-          </h3>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {archived.map((p) => (
-              <ProductCard key={p.id} product={p} />
-            ))}
-          </div>
+        <section className="space-y-3">
+          <h3 className="font-heading text-sm font-semibold text-muted-foreground">Archivados</h3>
+          <Table>
+            <ProductTableHeader />
+            <TableBody>
+              {archived.map((p) => (
+                <ProductRow key={p.id} product={p} />
+              ))}
+            </TableBody>
+          </Table>
         </section>
       )}
 
