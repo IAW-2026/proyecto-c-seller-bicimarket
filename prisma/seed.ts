@@ -13,7 +13,6 @@ type SeedProduct = {
   model: string
   category: 'mtb' | 'road' | 'urban' | 'kids' | 'bmx' | 'parts' | 'accessories' | 'indumentaria'
   condition: 'new' | 'used_like_new' | 'used_good' | 'used_fair'
-  status: 'active' | 'draft' | 'paused' | 'archived'
   priceCents: number
   weightGrams: number
   lengthCm: number
@@ -586,8 +585,28 @@ async function main() {
     if (exists) {
       await prisma.product.update({
         where: { id: productData.id },
-        data: { status: 'active' },
+        data: {
+          title: productData.title,
+          description: productData.description,
+          brand: productData.brand,
+          model: productData.model,
+          category: productData.category,
+          condition: productData.condition,
+          status: 'active',
+          priceCents: productData.priceCents,
+          weightGrams: productData.weightGrams,
+          lengthCm: productData.lengthCm,
+          widthCm: productData.widthCm,
+          heightCm: productData.heightCm,
+        },
       })
+      for (const img of images) {
+        await prisma.productImage.upsert({
+          where: { productId_position: { productId: productData.id, position: img.position } },
+          update: { url: img.url },
+          create: { ...img, productId: productData.id },
+        })
+      }
       console.log(`  [UPDATE] ${productData.title}`)
       updated++
       continue

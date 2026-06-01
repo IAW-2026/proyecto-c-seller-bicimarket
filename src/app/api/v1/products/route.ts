@@ -46,7 +46,10 @@ export async function GET(request: NextRequest) {
   const [products, total] = await Promise.all([
     prisma.product.findMany({
       where,
-      include: { images: { orderBy: { position: "asc" }, take: 1 } },
+      include: {
+        images: { orderBy: { position: "asc" }, take: 1 },
+        sellerProfile: { select: { displayName: true } },
+      },
       orderBy,
       skip,
       take: limit,
@@ -57,7 +60,9 @@ export async function GET(request: NextRequest) {
   const data = products.map((p) => ({
     id: p.id,
     seller_profile_id: p.sellerProfileId,
+    seller_display_name: p.sellerProfile.displayName,
     title: p.title,
+    description: p.description,
     brand: p.brand,
     model: p.model,
     category: p.category,
