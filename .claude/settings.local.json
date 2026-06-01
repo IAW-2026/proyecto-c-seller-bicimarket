@@ -9,7 +9,8 @@
       "Bash(rm -f 'C:/Users/pieri/OneDrive/Escritorio/REPO PARA IAW/initial-next-prisma-main/seller-app/src/hooks/use-products.ts')",
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:ui.shadcn.com)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(npx prisma *)"
     ]
   }
 }

@@ -8,7 +8,6 @@ export function formatProduct(p: {
   category: string;
   condition: string;
   priceCents: number;
-  discountPercent: number;
   currency: string;
   weightGrams: number;
   lengthCm: number | null;
@@ -28,8 +27,6 @@ export function formatProduct(p: {
     category: p.category,
     condition: p.condition,
     price_cents: p.priceCents,
-    discount_percent: p.discountPercent,
-    discounted_price_cents: Math.round(p.priceCents * (1 - p.discountPercent / 100)),
     currency: p.currency,
     weight_grams: p.weightGrams,
     dimensions_cm:
