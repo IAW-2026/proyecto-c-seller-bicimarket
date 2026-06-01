@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Errors, requireAuth } from "@/lib/api-utils";
+import { newId } from "@/lib/utils";
 
 export async function GET() {
   const { userId, error } = await requireAuth();
@@ -62,6 +63,7 @@ export async function PUT(request: NextRequest) {
 
   const created = await prisma.sellerProfile.create({
     data: {
+      id: newId("slp"),
       clerkUserId: userId!,
       legalName: String(legal_name),
       displayName: String(display_name),

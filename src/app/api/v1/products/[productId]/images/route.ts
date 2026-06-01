@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSupabaseAdmin, PRODUCT_IMAGES_BUCKET } from "@/lib/supabase";
 import { Errors, requireSellerProfile } from "@/lib/api-utils";
+import { newId } from "@/lib/utils";
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
@@ -68,7 +69,7 @@ export async function POST(
       : (product.images[0] ? product.images[0].position + 1 : 0);
 
   const image = await prisma.productImage.create({
-    data: { productId, url: publicUrlData.publicUrl, position },
+    data: { id: newId("img"), productId, url: publicUrlData.publicUrl, position },
   });
 
   return Response.json(

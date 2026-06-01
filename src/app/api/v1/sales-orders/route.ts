@@ -8,6 +8,7 @@ import {
   requireServiceToken,
 } from "@/lib/api-utils";
 import { formatSalesOrder } from "./_format";
+import { newId } from "@/lib/utils";
 
 // ── Stub data (shown when the seller has no orders yet) ──────
 
@@ -193,6 +194,7 @@ export async function POST(request: NextRequest) {
 
   const salesOrder = await prisma.salesOrder.create({
     data: {
+      id: newId("sor"),
       orderId: String(order_id),
       orderSellerGroupId: String(order_seller_group_id),
       sellerProfileId: firstProduct.sellerProfileId,
@@ -208,6 +210,7 @@ export async function POST(request: NextRequest) {
       shippingAddressSnapshot: shipping_address_snapshot as never,
       items: {
         create: itemsArr.map((item) => ({
+          id: newId("soi"),
           productId: item.product_id,
           productNameSnapshot: item.product_name_snapshot,
           unitPriceCents: item.unit_price_cents,

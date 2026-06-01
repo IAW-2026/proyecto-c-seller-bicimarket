@@ -8,6 +8,7 @@ import {
 } from "@/lib/api-utils";
 import { Prisma, ProductStatus } from "@prisma/client";
 import { formatProduct } from "./_format";
+import { newId } from "@/lib/utils";
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
@@ -117,6 +118,7 @@ export async function POST(request: NextRequest) {
 
   const product = await prisma.product.create({
     data: {
+      id: newId("prd"),
       sellerProfileId: profile!.id,
       title: String(title),
       description: String(description),
