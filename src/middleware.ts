@@ -6,15 +6,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign-up(.*)",
   "/api-docs(.*)",
   "/api/webhooks(.*)",
-  "/api/v1/openapi.json",
-  // Public catalog — no auth needed
-  "/api/v1/products(.*)",
-  // Seller profile pickup-address — validated by X-Service-Token, not Clerk
-  "/api/v1/seller-profile/:id/pickup-address",
-  // Sales orders server-to-server — validated by X-Service-Token inside the handler
-  "/api/v1/sales-orders",
-  "/api/v1/sales-orders/:id/payment-status",
-  "/api/v1/sales-orders/:id/shipping-status",
+  "/api/v1/(.*)",
 ]);
 
 export default clerkMiddleware(async (auth, request) => {
