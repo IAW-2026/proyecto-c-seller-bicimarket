@@ -8,11 +8,13 @@
 
 | Rol | Email | Contraseña |
 |-----|-------|------------|
-| Vendedor verificado | _a completar_ | _a completar_ |
-| Vendedor pendiente | _a completar_ | _a completar_ |
-| Admin | _a completar_ | _a completar_ |
+| Vendedor verificado | seller1clerk_test@iaw.com| iawuser# |
+| Vendedor pendiente | seller2clerk_test@iaw.com| iawuser# |
+| Admin | sellerclerk_test@iaw.com| iawuser# |
 
-> Los usuarios se crean en el Clerk propio de esta app (`seller.bicimarket`). El corrector debe iniciar sesión en `/sign-in` con las credenciales de arriba.
+> En la pagina de vendedor verificado se puede ver productos ya creados, algunas ordenes de estos productos y unas liquidaciones. Particularmente las ordenes estan para evidenciar todos los estados de las mismas durante el flujo de la buyer app.  
+> La pagina de vendedor pendiente esta para mostrar como es cuando un vendedor entra por primera vez a la app. Necesita rellenar su perfil, ser validado por un admin y recien ahi podra publicar productos.  
+> La pagina de Admin simplemente permite el acceso a ..../admin donde se puede gestionar el estado de los vendedores. Ademas, se pueden ver todos los productos que hay en la base de datos.
 
 ---
 
@@ -20,7 +22,7 @@
 
 1. **Iniciar sesión** en `/sign-in` con alguno de los usuarios de arriba.
 2. **Dashboard del vendedor** (`/dashboard`): desde ahí se navega entre las cuatro secciones.
-   - **Catálogo** — crear, editar, activar/pausar y archivar productos. El botón "Nuevo producto" solo aparece si el perfil del vendedor está `verified`; con estado `pending_review` el catálogo queda bloqueado.
+   - **Catálogo** — crear, editar, activar/pausar y archivar productos. El botón "Nuevo producto" solo aparece si el perfil del vendedor está `verified`; con estado `pending_review` el catálogo queda bloqueado. Al momento de crear un producto deberan ser rellenados todos los campos del formulario, inclusive el de imagen.
    - **Pedidos** — ver órdenes de venta recibidas y ejecutar acciones (aceptar, rechazar, marcar como listo para enviar).
    - **Liquidaciones** — resumen de pagos liquidados por la Payments App (proxy vía REST).
    - **Mi perfil** — completar datos fiscales y dirección de retiro; ver estado de verificación.
@@ -44,14 +46,15 @@ El stack es Next.js 15 (App Router) con TypeScript, Tailwind CSS + shadcn/ui, Pr
 
 ## Notas para la corrección
 
-- **Sin control de stock**: por decisión de alcance del proyecto, todos los productos `active` tienen disponibilidad ilimitada. No existe el campo `stock` ni el error `INSUFFICIENT_STOCK`. El endpoint `GET /api/v1/products/{id}/availability` solo confirma que el producto sigue activo y devuelve precio y peso.
+- **Stub ordenes:** al no haber las conexiones necesarias via api para generar una orden, el stub producido de ese endpoint esperado se activa solo si tenemos productos activados y aun no poseemos ordenes. Al momento de ingresar a productos se chequea si existe una diferencia entre esos dos valores, generando ordenes una unica vez.
 
-- **Provisioning perezoso sin webhooks**: el perfil local del vendedor se crea en el primer request autenticado leyendo los claims del JWT de Clerk, sin depender de webhooks. Los cambios hechos en el Clerk Dashboard se reflejan al próximo login.
+- **Sin control de stock**: por decisión de alcance del proyecto, todos los productos `active` tienen disponibilidad ilimitada. No existe el campo `stock` ni el error `INSUFFICIENT_STOCK`. El endpoint `GET /api/v1/products/{id}/availability` solo confirma que el producto sigue activo y devuelve precio y peso.
 
 - **Flujo de verificación**: un vendedor recién registrado queda en `pending_review` y no puede activar productos. Un admin (usuario con `publicMetadata.admin=true` en el Clerk de esta app) lo aprueba desde `/dashboard/admin`. Solo entonces aparece el botón "Nuevo producto" en el catálogo.
 
 - **Idempotencia en POSTs**: `POST /api/v1/products` acepta el header `Idempotency-Key`; reenviar con la misma clave devuelve el recurso existente sin duplicarlo.
 
-- **Retry en llamadas salientes**: las llamadas a Shipping App y Payments App usan 3 reintentos con backoff lineal (1s / 3s / 9s) y timeout de 5s, implementado en `src/lib/inter-app.ts`.
 
 - **Documentación completa** del contrato inter-apps, modelo de datos, estados y diagramas de secuencia en la carpeta [`docs/`](docs/).
+
+
