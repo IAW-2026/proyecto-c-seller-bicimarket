@@ -14,6 +14,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { NavUser } from "./nav-user";
 
@@ -30,6 +31,7 @@ type AppSidebarProps = {
 
 export function AppSidebar({ isAdmin, ...props }: AppSidebarProps) {
   const pathname = usePathname();
+  const { setOpenMobile } = useSidebar();
 
   return (
     <Sidebar variant="inset" {...props}>
@@ -56,7 +58,7 @@ export function AppSidebar({ isAdmin, ...props }: AppSidebarProps) {
             {NAV_ITEMS.map(({ href, label, icon: Icon }) => (
               <SidebarMenuItem key={href}>
                 <SidebarMenuButton
-                  render={<Link href={href} />}
+                  render={<Link href={href} onClick={() => setOpenMobile(false)} />}
                   isActive={pathname === href}
                   tooltip={label}
                 >
@@ -74,7 +76,7 @@ export function AppSidebar({ isAdmin, ...props }: AppSidebarProps) {
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  render={<Link href="/dashboard/admin" />}
+                  render={<Link href="/dashboard/admin" onClick={() => setOpenMobile(false)} />}
                   isActive={pathname.startsWith("/dashboard/admin")}
                   tooltip="Admin"
                 >
