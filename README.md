@@ -53,8 +53,6 @@ El stack es Next.js 15 (App Router) con TypeScript, Tailwind CSS + shadcn/ui, Pr
 
 - **Flujo de verificación**: un vendedor recién registrado queda en `pending_review` y no puede activar productos. Un admin (usuario con `publicMetadata.admin=true` en el Clerk de esta app) lo aprueba desde `/dashboard/admin`. Solo entonces aparece el botón "Nuevo producto" en el catálogo.
 
-- **Idempotencia en POSTs**: `POST /api/v1/products` acepta el header `Idempotency-Key`; reenviar con la misma clave devuelve el recurso existente sin duplicarlo.
-
 
 - **Documentación completa** del contrato inter-apps, modelo de datos, estados y diagramas de secuencia en la carpeta [`docs/`](docs/).
 
