@@ -31,6 +31,8 @@
 5. **API docs** (`/api-docs`): Swagger UI con todos los endpoints documentados.
 
 > Para probar el flujo completo (compra → pago → sub-orden en Seller) se requiere integración con las otras tres apps del sistema (Buyer, Payments, Shipping). Las llamadas server-to-server usan `X-Service-Token` en el header.
+> **Stub ordenes:** al no haber las conexiones necesarias via api para generar una orden, el stub producido de ese endpoint esperado se activa solo si tenemos productos activados y aun no poseemos ordenes. Al momento de ingresar a productos se chequea si existe una diferencia entre esos dos valores, generando ordenes una unica vez.
+
 
 ---
 
@@ -46,7 +48,6 @@ El stack es Next.js 15 (App Router) con TypeScript, Tailwind CSS + shadcn/ui, Pr
 
 ## Notas para la corrección
 
-- **Stub ordenes:** al no haber las conexiones necesarias via api para generar una orden, el stub producido de ese endpoint esperado se activa solo si tenemos productos activados y aun no poseemos ordenes. Al momento de ingresar a productos se chequea si existe una diferencia entre esos dos valores, generando ordenes una unica vez.
 
 - **Sin control de stock**: por decisión de alcance del proyecto, todos los productos `active` tienen disponibilidad ilimitada. No existe el campo `stock` ni el error `INSUFFICIENT_STOCK`. El endpoint `GET /api/v1/products/{id}/availability` solo confirma que el producto sigue activo y devuelve precio y peso.
 
