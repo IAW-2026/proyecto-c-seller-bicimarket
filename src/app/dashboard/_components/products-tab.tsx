@@ -100,7 +100,16 @@ function CreateProductDialog({
   onOpenChange: (v: boolean) => void;
 }) {
   const [form, setForm] = useState<CreateProductInput>(EMPTY_FORM);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const create = useCreateProduct();
+  const addImage = useAddProductImage();
+  const busy = create.isPending || addImage.isPending;
+
+  useEffect(() => {
+    return () => { if (imagePreview) URL.revokeObjectURL(imagePreview); };
+  }, [imagePreview]);
 
   function set<K extends keyof CreateProductInput>(k: K, v: CreateProductInput[K]) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -118,6 +127,22 @@ function CreateProductDialog({
     }));
   }
 
+  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0] ?? null;
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setImageFile(f);
+    setImagePreview(f ? URL.createObjectURL(f) : null);
+  }
+
+  function handleClose() {
+    setForm(EMPTY_FORM);
+    setImageFile(null);
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setImagePreview(null);
+    if (imageInputRef.current) imageInputRef.current.value = "";
+    onOpenChange(false);
+  }
+
   async function handleSubmit() {
     if (!form.title || !form.brand || !form.model || form.price_cents <= 0) {
       toast.error("Completá los campos obligatorios");
@@ -130,17 +155,25 @@ function CreateProductDialog({
         dim && dim.length > 0 && dim.width > 0 && dim.height > 0 ? dim : undefined,
     };
     try {
-      await create.mutateAsync(payload);
+      const res = await create.mutateAsync(payload);
+      if (imageFile) {
+        try {
+          await addImage.mutateAsync({ productId: res.data.id, file: imageFile });
+        } catch {
+          toast.error("Producto creado, pero no se pudo subir la imagen");
+          handleClose();
+          return;
+        }
+      }
       toast.success("Producto creado en borrador");
-      setForm(EMPTY_FORM);
-      onOpenChange(false);
+      handleClose();
     } catch {
       toast.error("No se pudo crear el producto");
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nuevo producto</DialogTitle>
@@ -256,11 +289,29 @@ function CreateProductDialog({
               onChange={(e) => set("description", e.target.value)}
             />
           </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="product-image">Imagen</Label>
+            <Input
+              ref={imageInputRef}
+              id="product-image"
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="cursor-pointer"
+              onChange={handleImageChange}
+            />
+            {imagePreview && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={imagePreview} alt="Vista previa" className="mt-2 max-h-36 w-full rounded-md border object-contain" />
+            )}
+          </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button disabled={create.isPending} onClick={handleSubmit}>Crear producto</Button>
+          <Button variant="outline" onClick={handleClose} disabled={busy}>Cancelar</Button>
+          <Button disabled={busy} onClick={handleSubmit}>
+            {busy ? "Creando…" : "Crear producto"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
