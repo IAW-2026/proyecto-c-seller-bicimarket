@@ -31,18 +31,19 @@ El sistema se piensa para escalar a **órdenes multi-vendedor**: una compra pued
 | Shipping App | Logística, dueña de los `shipments`, paquetes y eventos de tracking                  | Enrique Seitz | Operadores logísticos, envíos, paquetes (con peso y dimensiones), cotizaciones, asignaciones, tracking |
 | Payments App | Pasarela y liquidaciones, integra Mercado Pago                                       | Rocco Paoloni | Pagos, intentos, comprobantes, liquidaciones por vendedor, transferencias                              |
 
-> **Importante**: todas las apps comparten **una única instancia de Clerk**. El rol del usuario (`buyer`, `seller`, `logistics`) se determina por `publicMetadata.role` en el JWT; la flag admin es `publicMetadata.admin=true`. Las apps se hablan entre sí por REST con `X-Service-Token`. Ver `05-usuarios.md`.
+> **Importante**: cada app tiene **su propio proyecto en Clerk** (cuatro Clerks distintos). Los usuarios se autentican en la app que están usando; las apps se hablan entre sí por REST con `X-Service-Token`. No hay correlación de identidad entre Clerks. Ver `05-usuarios.md`.
 
 ## 3. Actores
 
-| Actor              | Apps donde se loguea                                   | Rol en Clerk (compartido)                           |
-| ------------------ | ------------------------------------------------------ | --------------------------------------------------- |
-| Comprador          | Buyer App                                              | `publicMetadata.role = buyer`                       |
-| Vendedor           | Seller App                                             | `publicMetadata.role = seller`                      |
-| Operador logístico | Shipping App                                           | `publicMetadata.role = logistics`                   |
-| Admin              | Cualquier app donde necesite operar                    | `publicMetadata.admin = true` (combinable con role) |
+| Actor              | Apps donde se loguea                                   | Clerk(s) que usa                                 |
+| ------------------ | ------------------------------------------------------ | ------------------------------------------------ |
+| Comprador          | Buyer App                                              | Clerk-Buyer (rol `buyer`)                        |
+| Vendedor           | Seller App                                             | Clerk-Seller (rol `seller`)                      |
+| Operador logístico | Shipping App                                           | Clerk-Shipping (rol `logistics`)                 |
+| Admin de Payments  | Payments App (admin UI: refunds, payouts, settlements) | Clerk-Payments (admin obligatorio)               |
+| Admin transversal  | Las apps donde necesite operar                         | Clerk respectivo con `publicMetadata.admin=true` |
 
-Un mismo humano puede tener perfiles en múltiples apps con la misma cuenta de Clerk (ej: alguien que vende y también compra). Si querés ver comprobantes vas a Buyer App; si querés ver liquidaciones vas a Seller App. Esas vistas consumen Payments por REST con `X-Service-Token`.
+Un humano que opera en varias apps tiene cuentas separadas en cada Clerk. El sistema **no las correlaciona**: si querés ver tus comprobantes vas a Buyer App; si querés ver tus liquidaciones vas a Seller App. Esas vistas las renderizan las apps fuente consumiendo Payments por REST.
 
 ## 4. Flujos principales
 
@@ -118,7 +119,7 @@ sequenceDiagram
     autonumber
     actor V as Vendedor
     participant S as Seller App
-    participant CL as Clerk (compartido)
+    participant CL as Clerk-Seller
     participant ST as Storage (S3/Supabase)
 
     V->>CL: Login (email + password)
@@ -261,7 +262,7 @@ La única excepción —porque no podemos cambiarla— es el **webhook de Mercad
 | Shipping App | Logística, dueña de los `shipments`, paquetes y tracking         | Enrique Seitz   | Operadores logísticos, envíos, paquetes (peso y dimensiones), cotizaciones, asignaciones, tracking |
 | Payments App | Pasarela y liquidaciones, integra Mercado Pago                   | Rocco Paoloni   | Pagos, intentos, comprobantes, liquidaciones por vendedor, transferencias                          |
 
-> **Importante**: todas las apps comparten **una única instancia de Clerk**. El rol del usuario (`buyer`, `seller`, `logistics`) se determina por `publicMetadata.role` en el JWT; la flag admin es `publicMetadata.admin=true`. Las apps se hablan entre sí por REST con `X-Service-Token`. Ver `05-usuarios.md`.
+> **Importante**: cada app tiene **su propio proyecto en Clerk** (cuatro Clerks distintos). Los usuarios se autentican en la app que están usando; las apps se hablan entre sí por REST con `X-Service-Token`. No hay correlación de identidad entre Clerks. Ver `05-usuarios.md`.
 
 ## 6. Estados clave
 
@@ -274,13 +275,3 @@ Las máquinas de estado completas viven en `06-estados.md`. Versión corta:
 - **`payment.status`** (Payments): `pending → approved → rejected → refunded`. Estados terminales no se reabren.
 - **`settlement.status`** (Payments): `pending → paid → failed → manual_review`.
 
----
-
-## Anexo — Cambios respecto de `Docs Vieja/01-descripcion_doc_vieja.md`
-
-| Cambio | Qué era antes | Qué es ahora | Por qué cambió |
-|--------|--------------|--------------|----------------|
-| **Arquitectura de identidad: Clerk único** | "cada app tiene su propio proyecto en Clerk (cuatro Clerks distintos)" en §2 | "todas las apps comparten una única instancia de Clerk" con `publicMetadata.role` para determinar el rol | La arquitectura real usa un único Clerk compartido. Cuatro Clerks separados nunca se implementaron. |
-| **Tabla de actores (§3)** | Columna "Clerk(s) que usa" con `Clerk-Buyer`, `Clerk-Seller`, `Clerk-Shipping`, `Clerk-Payments (admin obligatorio)` | Columna "Rol en Clerk (compartido)" con `publicMetadata.role = buyer/seller/logistics` y `publicMetadata.admin = true` | Con un solo Clerk, el rol no es implícito por la instancia de Clerk sino que se guarda como `publicMetadata.role` en el mismo usuario. |
-| **Identidad cruzada entre apps** | "Un humano que opera en varias apps tiene cuentas separadas en cada Clerk. El sistema **no las correlaciona**" | "Un mismo humano puede tener perfiles en múltiples apps con la misma cuenta de Clerk" | Con Clerk único, la misma cuenta identifica al mismo humano en todas las apps; no existen cuentas separadas por app. |
-| **Diagrama 4.2 (publicación de producto)** | Participante `Clerk-Seller` | Participante `Clerk (compartido)` | Nombre corregido para reflejar el Clerk único del sistema. |

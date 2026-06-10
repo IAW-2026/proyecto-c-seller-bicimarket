@@ -16,7 +16,7 @@
 - **Snapshots**: cuando un campo viene de otra app (precio, dirección, nombre del producto), se guarda con sufijo `_snapshot` y **nunca se actualiza** una vez guardado.
 - **Referencias cruzadas**: los IDs de otras apps se guardan como **string opaco**, sin foreign key. La integridad la mantiene el ciclo de vida del negocio.
 - **Auditoría**: cualquier cambio de estado relevante (`order.status`, `shipment.status`, `payment.status`, `settlement.status`) deja registro en una tabla `*_status_history` (ver §6).
-- **Identidad**: todas las apps comparten **un único Clerk**. `clerk_user_id` en cada perfil refiere al mismo usuario del Clerk compartido. Un humano puede tener perfiles en múltiples apps usando el mismo `clerk_user_id`; las apps no mantienen tablas de mapeo porque no hace falta.
+- **Identidad**: cada app tiene su propio Clerk. `clerk_user_id` en cada perfil refiere al Clerk **de esa app**. No existe correlación entre Clerks: si un humano opera en varias apps, sus cuentas son independientes. Las apps no mantienen tablas de mapeo entre identidades.
 
 ---
 
@@ -30,7 +30,7 @@ Fuente de verdad de: `order_id`, carrito, direcciones del comprador, perfil de c
 | Campo | Tipo | Notas |
 |---|---|---|
 | `id` | string PK | `byp_…` |
-| `clerk_user_id` | string unique | viene del Clerk compartido |
+| `clerk_user_id` | string unique | viene del Clerk-Buyer |
 | `full_name` | string | snapshot del nombre, sincronizado desde Clerk en el primer login |
 | `email` | string unique | idem |
 | `phone` | string? | |
@@ -161,7 +161,7 @@ Fuente de verdad de: catálogo (`product`, precio, peso), perfil de vendedor, su
 | Campo | Tipo | Notas |
 |---|---|---|
 | `id` | string PK | `slp_…` |
-| `clerk_user_id` | string unique | Clerk compartido |
+| `clerk_user_id` | string unique | Clerk-Seller |
 | `legal_name` | string | |
 | `display_name` | string | |
 | `tax_id` | string | CUIT |
@@ -180,7 +180,7 @@ Fuente de verdad de: catálogo (`product`, precio, peso), perfil de vendedor, su
 | `description` | text | |
 | `brand` | string | |
 | `model` | string | |
-| `category` | enum `mtb` \| `road` \| `urban` \| `kids` \| `bmx` \| `parts` \| `accessories` \| `indumentaria` | |
+| `category` | enum `mtb` \| `road` \| `urban` \| `kids` \| `bmx` \| `parts` \| `accessories` | |
 | `condition` | enum `new` \| `used_like_new` \| `used_good` \| `used_fair` | |
 | `price_cents` | int | |
 | `currency` | string | |
@@ -261,7 +261,7 @@ Fuente de verdad de: `shipment_id`, paquetes, eventos de tracking, operadores lo
 | Campo | Tipo | Notas |
 |---|---|---|
 | `id` | string PK | `lop_…` |
-| `clerk_user_id` | string unique | Clerk compartido |
+| `clerk_user_id` | string unique | Clerk-Shipping |
 | `full_name` | string | |
 | `phone` | string | |
 | `email` | string | |
@@ -391,7 +391,7 @@ Fuente de verdad de: `payment_id`, intentos, comprobantes, settlements (uno por 
 |---|---|---|
 | `id` | string PK | `pay_…` |
 | `order_id` | string | ref opaca |
-| `buyer_clerk_user_id` | string | `clerk_user_id` del comprador, lo manda Buyer App |
+| `buyer_clerk_user_id` | string | de Clerk-Buyer (lo manda Buyer App) |
 | `buyer_profile_id` | string | |
 | `amount_cents` | int | total cobrado al comprador |
 | `currency` | string | |
@@ -556,7 +556,7 @@ pending ─► paid (terminal)
 
 | Dato | Apps que lo tienen | Fuente de verdad | Estrategia |
 |---|---|---|---|
-| Identidad de usuario | Clerk compartido por todas las apps | El único Clerk del sistema | Un mismo `clerk_user_id` puede tener perfiles en múltiples apps. No hay mapeo necesario porque es el mismo usuario. |
+| Identidad de usuario | Cada app tiene su Clerk | El Clerk de cada app | Cada Clerk es una base de usuarios independiente. No hay sync ni mapeo entre Clerks: si un humano opera en varias apps, sus cuentas son cuentas separadas. El sistema no las correlaciona. |
 | Datos de perfil básicos (nombre, email) | Clerk de cada app + perfil local | Clerk de esa app | El perfil local se crea en el primer login (provisioning perezoso): el backend lee los claims del JWT y guarda el snapshot. Las actualizaciones siguen con cada login (refresh on demand). |
 | `order_id` y estado visible de la orden | Buyer (verdad), Seller, Shipping, Payments | **Buyer App** | Buyer es dueña; las demás guardan ref opaca y reciben `PATCH` REST cuando hay cambios. |
 | `shipment_id` y estado de envío | Shipping (verdad), Buyer, Seller | **Shipping App** | Shipping notifica con `PATCH` REST; Buyer y Seller guardan `shipping_status` espejo. |
@@ -566,15 +566,3 @@ pending ─► paid (terminal)
 | Comisión y net del settlement | Payments (verdad) | **Payments App** | Seller solo lee. |
 
 ---
-
-## Anexo — Cambios respecto de `Docs Vieja/04-modelo-de-datos_doc_vieja.md`
-
-| Cambio | Qué era antes | Qué es ahora | Por qué cambió |
-|--------|--------------|--------------|----------------|
-| **Regla §0: identidad** | "cada app tiene su propio Clerk. `clerk_user_id` refiere al Clerk **de esa app**. No existe correlación entre Clerks: si un humano opera en varias apps, sus cuentas son cuentas separadas" | "todas las apps comparten **un único Clerk**. `clerk_user_id` refiere al mismo usuario del Clerk compartido. Un humano puede tener perfiles en múltiples apps usando el mismo `clerk_user_id`" | La arquitectura real usa un único Clerk. Con Clerk único, el mismo `clerk_user_id` identifica al mismo humano en todas las apps sin necesidad de correlación ni mapeo. |
-| **`buyer_profiles.clerk_user_id`** | "viene del Clerk-Buyer" | "viene del Clerk compartido" | No existe "Clerk-Buyer" como instancia separada; todos los perfiles referencian el único Clerk del sistema. |
-| **`seller_profiles.clerk_user_id`** | "Clerk-Seller" | "Clerk compartido" | Idem. |
-| **`logistics_operators.clerk_user_id`** | "Clerk-Shipping" | "Clerk compartido" | Idem. |
-| **`payments.buyer_clerk_user_id`** | "de Clerk-Buyer (lo manda Buyer App)" | "`clerk_user_id` del comprador, lo manda Buyer App" | El campo es el `clerk_user_id` estándar del único Clerk, no de un Clerk separado de Buyer. |
-| **§6 consistencia: identidad de usuario** | "Cada Clerk es una base de usuarios independiente. No hay sync ni mapeo entre Clerks" | "Un mismo `clerk_user_id` puede tener perfiles en múltiples apps. No hay mapeo necesario porque es el mismo usuario" | Con Clerk único, no hay cuentas separadas. El mismo `clerk_user_id` vincula los perfiles locales en cada app. |
-| **`products.category` enum** | Sin valor `indumentaria` | Agregado `\| indumentaria` | Categoría adicional implementada en la Seller App. |

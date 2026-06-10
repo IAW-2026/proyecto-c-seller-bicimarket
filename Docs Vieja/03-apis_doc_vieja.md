@@ -21,9 +21,9 @@
 | Header            | Aplica a                             | Valor                                                     |
 | ----------------- | ------------------------------------ | --------------------------------------------------------- |
 | `Content-Type`    | POST/PATCH/PUT con body              | `application/json` (o `multipart/form-data` para uploads) |
-| `Authorization`   | Llamadas desde la UI propia          | `Bearer <JWT-de-Clerk>` (único Clerk compartido)          |
+| `Authorization`   | Llamadas desde la UI propia          | `Bearer <JWT-de-Clerk-de-la-app>`                         |
 | `X-Service-Token` | Llamadas server-to-server entre apps | secret rotable del par origen→destino                     |
-| `X-Request-Id`    | Toda llamada inter-app               | UUID. La Seller App genera uno nuevo por cada llamada saliente (no propaga el ID entrante). |
+| `X-Request-Id`    | Toda llamada inter-app               | UUID que se propaga en cadena                             |
 | `Idempotency-Key` | POST que crea recursos               | UUID elegido por el cliente                               |
 
 ### 0.3 Formato de error
@@ -52,7 +52,7 @@
 
 ### 0.4 Paginación estándar
 
-Querystring: `?page=1&limit=50&sort=-created_at&q=...`.
+Querystring: `?page=1&limit=20&sort=-created_at&q=...`.
 
 ```json
 {
@@ -62,14 +62,12 @@ Querystring: `?page=1&limit=50&sort=-created_at&q=...`.
   "pagination": {
     "total": 134,
     "page": 1,
-    "limit": 50,
+    "limit": 20,
     "has_more": true,
     "next_cursor": null
   }
 }
 ```
-
-> **Seller App**: default `limit=50`, máximo `limit=100`. `next_cursor` siempre es `null` (paginación por página, no por cursor).
 
 ### 0.5 IDs
 
@@ -87,11 +85,11 @@ Montos en **centavos** como entero (`amount_cents: 1599900` = ARS 15.999,00). Cu
 
 # Buyer App — `https://buyer.bicimarket.com` **_Vercel URL_**
 
-Owner: Camila Rojas Fritz. Clerk: compartido (`publicMetadata.role=buyer`).
+Owner: Camila Rojas Fritz. Clerk: `buyer.bicimarket`.
 
 ## B1. Perfil del comprador
 
-### `GET /api/v1/buyer/profile`
+### `GET /api/v1/buyer-profile/me`
 
 Devuelve el perfil propio.
 
@@ -112,9 +110,9 @@ Devuelve el perfil propio.
 }
 ```
 
-### `PATCH /api/v1/buyer/profile`
+### `PUT /api/v1/buyer-profile/me`
 
-Actualiza el perfil del comprador.
+Crea o actualiza el perfil. Idempotente.
 
 **Request**
 
@@ -143,7 +141,7 @@ Actualiza el perfil del comprador.
 
 ## B2. Direcciones
 
-### `GET /api/v1/buyer/addresses`
+### `GET /api/v1/addresses`
 
 **Response 200**
 
@@ -167,7 +165,7 @@ Actualiza el perfil del comprador.
 }
 ```
 
-### `POST /api/v1/buyer/addresses`
+### `POST /api/v1/addresses`
 
 **Request**
 
@@ -187,12 +185,12 @@ Actualiza el perfil del comprador.
 
 **Response 201**: el address creado.
 
-### `PATCH /api/v1/buyer/addresses/{addressId}`
+### `PUT /api/v1/addresses/{addressId}`
 
 **Request**: idéntico al POST.
 **Response 200**: address actualizado.
 
-### `DELETE /api/v1/buyer/addresses/{addressId}`
+### `DELETE /api/v1/addresses/{addressId}`
 
 **Response 204** sin body.
 
@@ -200,7 +198,7 @@ Actualiza el perfil del comprador.
 
 ## B3. Carrito
 
-### `GET /api/v1/buyer/cart`
+### `GET /api/v1/cart`
 
 Devuelve el carrito activo. Si no existe, lo crea vacío.
 
@@ -250,7 +248,7 @@ Devuelve el carrito activo. Si no existe, lo crea vacío.
 }
 ```
 
-### `POST /api/v1/buyer/cart`
+### `POST /api/v1/cart/items`
 
 **Request**
 
@@ -270,7 +268,7 @@ Buyer App llama internamente a `GET /api/v1/products/{id}/availability` en Selle
 - `404 PRODUCT_NOT_FOUND`
 - `409 PRODUCT_NOT_ACTIVE` si la publicación no está `active`
 
-### `PATCH /api/v1/buyer/cart/{itemId}`
+### `PATCH /api/v1/cart/items/{itemId}`
 
 **Request**
 
@@ -280,7 +278,7 @@ Buyer App llama internamente a `GET /api/v1/products/{id}/availability` en Selle
 
 **Response 200**: el cart_item actualizado.
 
-### `DELETE /api/v1/buyer/cart/{itemId}`
+### `DELETE /api/v1/cart/items/{itemId}`
 
 **Response 204**.
 
@@ -288,7 +286,7 @@ Buyer App llama internamente a `GET /api/v1/products/{id}/availability` en Selle
 
 ## B4. Favoritos
 
-### `GET /api/v1/buyer/favorites`
+### `GET /api/v1/favorites`
 
 **Response 200**
 
@@ -305,11 +303,11 @@ Buyer App llama internamente a `GET /api/v1/products/{id}/availability` en Selle
 }
 ```
 
-### `POST /api/v1/buyer/favorites`
+### `POST /api/v1/favorites`
 
 **Request**: `{ "product_id": "prd_01H…" }`. **Response 201**.
 
-### `DELETE /api/v1/buyer/favorites/{favoriteId}`
+### `DELETE /api/v1/favorites/{favoriteId}`
 
 **Response 204**.
 
@@ -317,7 +315,7 @@ Buyer App llama internamente a `GET /api/v1/products/{id}/availability` en Selle
 
 ## B5. Órdenes (fuente de verdad de `order_id`)
 
-### `POST /api/v1/buyer/checkout`
+### `POST /api/v1/orders`
 
 Crea la orden a partir del carrito + dirección + cotizaciones. **Idempotency-Key obligatorio.**
 
@@ -404,11 +402,11 @@ Crea la orden a partir del carrito + dirección + cotizaciones. **Idempotency-Ke
 - `409 QUOTE_EXPIRED` con `details: { quote_id, expires_at }`
 - `422 ADDRESS_INVALID`
 
-### `GET /api/v1/buyer/orders/{orderId}`
+### `GET /api/v1/orders/{orderId}`
 
 **Response 200**: misma forma que el POST.
 
-### `GET /api/v1/buyer/orders`
+### `GET /api/v1/orders?buyerId={buyerId}&status=paid&page=1&limit=20`
 
 **Response 200**
 
@@ -428,7 +426,7 @@ Crea la orden a partir del carrito + dirección + cotizaciones. **Idempotency-Ke
 }
 ```
 
-### `PATCH /api/v1/orders/{orderId}` (server-to-server)
+### `PATCH /api/v1/orders/{orderId}/status` (server-to-server)
 
 Lo llama Payments App. Requiere `X-Service-Token`.
 
@@ -466,7 +464,7 @@ Lo llama Shipping App.
 
 **Response 200**: el seller_group actualizado.
 
-### `POST /api/v1/buyer/orders/{orderId}/cancel`
+### `POST /api/v1/orders/{orderId}/cancel`
 
 Solo si `status=pending_payment`.
 
@@ -480,7 +478,7 @@ Solo si `status=pending_payment`.
 
 # Seller App — `https://seller.bicimarket.com` **_Vercel URL_**
 
-Owner: Pierino Spina. Clerk: compartido (`publicMetadata.role=seller`).
+Owner: Pierino Spina. Clerk: `seller.bicimarket`.
 
 ## S1. Perfil de vendedor
 
@@ -543,8 +541,6 @@ Lo consume Shipping para cotizar y crear el envío.
 ### `GET /api/v1/products`
 
 **Querystring**: `?q=trek&category=mtb&brand=trek&min_price_cents=10000000&max_price_cents=100000000&seller_id=slp_01H…&sort=-created_at&page=1&limit=20`.
-
-`category` válidos: `mtb` | `road` | `urban` | `kids` | `bmx` | `parts` | `accessories` | `indumentaria`.
 
 **Response 200**
 
@@ -628,8 +624,6 @@ Confirma que el producto sigue publicado y devuelve los datos vigentes que neces
 ```
 
 `available` es `true` si y solo si `status=active` y el `seller_profile` está `verified`. Cuando es `false`, el producto no se puede agregar al carrito y Buyer App devuelve `409 PRODUCT_NOT_ACTIVE`.
-
-`unit_price_cents` coincide con `price_cents`. Este es el valor que Buyer App snapshottea al carrito y a la orden.
 
 ---
 
@@ -732,8 +726,7 @@ Soft delete: pasa a `status=archived`. **Response 204**.
     "postal_code": "C1043",
     "country": "AR"
   },
-  "payment_id": "pay_01H…",
-  "shipping_quote_id": "qte_01H…"
+  "payment_id": "pay_01H…"
 }
 ```
 
@@ -781,14 +774,6 @@ Cuando pasa a `ready_to_ship`, Seller llama internamente a Shipping `POST /shipm
 
 **Response 200**.
 
-### `GET /api/v1/seller/products` (privado, vendedor — alias de conveniencia)
-
-Alias interno de `GET /api/v1/seller-profile/me/products`. Devuelve los productos del vendedor autenticado en todos los estados (`draft`, `active`, `paused`, `archived`). Misma forma de respuesta paginada.
-
-**Auth**: Bearer JWT.
-
----
-
 ### `PATCH /api/v1/sales-orders/{salesOrderId}/payment-status` (server-to-server, lo llama Payments)
 
 **Request**
@@ -820,34 +805,7 @@ Alias interno de `GET /api/v1/seller-profile/me/products`. Devuelve los producto
 
 ---
 
-## S5. Rutas auxiliares
-
-### `GET /api/v1/openapi.json`
-
-Devuelve el schema OpenAPI de la Seller App en formato JSON. Ruta pública, sin auth. Solo para uso en desarrollo/documentación.
-
-### `PATCH /api/v1/admin/seller-profiles/{sellerProfileId}/verification`
-
-**Auth**: Bearer JWT con `publicMetadata.admin=true`.
-
-Cambia el `verification_status` de un perfil de vendedor.
-
-**Request**: `{ "verification_status": "verified" }` — valores válidos: `pending_review` | `verified` | `suspended`.
-
-**Response 200** (respuesta minimal, solo los campos actualizados):
-
-```json
-{
-  "id": "slp_01H…",
-  "verification_status": "verified"
-}
-```
-
-> La respuesta devuelve solo `id` y `verification_status`, no el perfil completo. Diseño deliberado para este endpoint administrativo.
-
----
-
-## S6. Inventario
+## S5. Inventario
 
 > **No aplica en esta etapa.** Por restricción del proyecto el stock es ilimitado, así que no existen los endpoints `PATCH /products/{id}/stock` ni `GET /inventory-movements` ni el recurso `inventory_movements`. Esta sección queda como referencia futura por si en una etapa posterior se decide habilitar control de inventario; mientras tanto, ningún cliente debe llamar a endpoints de stock porque la Seller App no los expone.
 
@@ -855,7 +813,7 @@ Cambia el `verification_status` de un perfil de vendedor.
 
 # Shipping App — `https://shipping.bicimarket.com` **_Vercel URL_**
 
-Owner: Enrique Seitz. Clerk: compartido (`publicMetadata.role=logistics`).
+Owner: Enrique Seitz. Clerk: `shipping.bicimarket`.
 
 ## SH1. Cotizaciones
 
@@ -1210,7 +1168,7 @@ Devuelve los envíos asignados al operador logueado.
 
 # Payments App — `https://payments.bicimarket.com` **_Vercel URL — admin UI únicamente_**
 
-Owner: Rocco Paoloni. Clerk: compartido (**solo admins**: todo JWT debe traer `publicMetadata.admin=true` o se rechaza con 401).
+Owner: Rocco Paoloni. Clerk: `payments.bicimarket` (**solo admins**: todo JWT debe traer `publicMetadata.admin=true` o se rechaza con 401).
 
 > **Importante**: buyers y sellers no se loguean en Payments App. Las vistas "Mis comprobantes" y "Mis liquidaciones" viven dentro de Buyer App y Seller App respectivamente, que consumen estos endpoints por REST con `X-Service-Token`. Los endpoints listados acá son: (a) los server-to-server que llaman las otras apps, (b) los administrativos que usa la admin UI con JWT-Payments + admin flag.
 
@@ -1545,16 +1503,3 @@ MERCADOPAGO_WEBHOOK_SECRET=…
 ```
 
 ---
-
-## Anexo — Cambios respecto de `Docs Vieja/03-apis_doc_vieja.md`
-
-| Cambio | Qué era antes | Qué es ahora | Por qué cambió |
-|--------|--------------|--------------|----------------|
-| **Header `Authorization` (§0.2)** | "`Bearer <JWT-de-Clerk-de-la-app>`" — un JWT distinto por instancia de Clerk de cada app | "`Bearer <JWT-de-Clerk>` (único Clerk compartido)" | Con un único Clerk, el JWT es el mismo para todas las apps. No existe un JWT "de la app". |
-| **Header `X-Request-Id` (§0.2)** | "UUID que se propaga en cadena" | "UUID. La Seller App genera uno nuevo por cada llamada saliente (no propaga el ID entrante)" | Decisión de implementación de la Seller App. La correlación cruzada se logra por IDs de negocio como `sales_order_id`. |
-| **Paginación por defecto (§0.4)** | Default `limit=20` en el ejemplo y en el querystring | Default `limit=50`; nota sobre Seller App y `next_cursor: null` siempre | La implementación real de la Seller App usa 50 como límite default. |
-| **Identificador de Clerk por sección** | `buyer.bicimarket`, `seller.bicimarket`, `shipping.bicimarket`, `payments.bicimarket` como Clerk separados en el header de cada app | "Clerk: compartido (`publicMetadata.role=X`)" en cada sección | Único Clerk compartido; el rol se distingue por `publicMetadata.role` en el JWT. |
-| **Rutas Buyer App (B1–B5)** | `/api/v1/buyer-profile/me` (GET/PUT), `/api/v1/addresses`, `/api/v1/cart`, `/api/v1/cart/items`, `/api/v1/orders` | `/api/v1/buyer/profile` (GET/PATCH), `/api/v1/buyer/addresses`, `/api/v1/buyer/cart`, `/api/v1/buyer/checkout`, `/api/v1/buyer/orders` | Reorganización de rutas bajo el prefijo `/buyer/`. `PUT /buyer-profile/me` reemplazado por `PATCH /buyer/profile`. |
-| **POST /sales-orders: campo `shipping_quote_id`** | Sin este campo en el body del request | Campo opcional `"shipping_quote_id": "qte_01H…"` aceptado en el body | La implementación real lo acepta y persiste en `sales_orders.shipping_quote_id` para mantener trazabilidad con la cotización original. |
-| **Categoría `indumentaria`** | Enum `category`: `mtb \| road \| urban \| kids \| bmx \| parts \| accessories` | Agregado `\| indumentaria` | Categoría adicional implementada en el catálogo de la Seller App. |
-| **Nuevas rutas Seller App (S5)** | Sin sección S5; S5 era directamente "Inventario" | Nueva sección S5 con `GET /api/v1/seller/products`, `GET /api/v1/openapi.json`, `PATCH /api/v1/admin/seller-profiles/{id}/verification`; sección Inventario renumerada a S6 | Estas rutas existen en el código y deben estar documentadas para evitar confusión. |

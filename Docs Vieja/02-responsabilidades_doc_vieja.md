@@ -6,14 +6,12 @@
 
 ## 1. Distribución
 
-| App          | Responsable        | Repositorio                                                         |
-| ------------ | ------------------ | ------------------------------------------------------------------- |
-| Buyer App    | Camila Rojas Fritz | https://github.com/camilarojasfritz/proyecto-c-buyer-camilarojas    |
-| Seller App   | Pierino Spina      | https://github.com/Spinapierino7/proyecto-c-seller-pierinospina.git |
-| Shipping App | Enrique Seitz      | https://github.com/Enry6tz/proyecto-c-shipping-enriqueseitz         |
-| Payments App | Rocco Paoloni      | https://github.com/roccopaoloni/proyecto-c-payments-roccopaoloni    |
-
-> Todas las apps comparten **una única instancia de Clerk**. Ver `05-usuarios.md`.
+| App          | Responsable        | Repositorio                                                         | Clerk propio                                                            |
+| ------------ | ------------------ | ------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Buyer App    | Camila Rojas Fritz | https://github.com/camilarojasfritz/proyecto-c-buyer-camilarojas    | Sí (`buyer.bicimarket`)                                                 |
+| Seller App   | Pierino Spina      | https://github.com/Spinapierino7/proyecto-c-seller-pierinospina.git | Sí (`seller.bicimarket`)                                                |
+| Shipping App | Enrique Seitz      | https://github.com/Enry6tz/proyecto-c-shipping-enriqueseitz         | Sí (`shipping.bicimarket`)                                              |
+| Payments App | Rocco Paoloni      | https://github.com/roccopaoloni/proyecto-c-payments-roccopaoloni    | Sí (`payments.bicimarket`), **solo para admins** (no buyers ni sellers) |
 
 ---
 
@@ -25,14 +23,14 @@ Toda app del sistema cumple estas reglas. **Si alguna no las cumple, el sistema 
 
 1. **Versionado**: todos los endpoints viven bajo `/api/v1/...`.
 2. **Autenticación**:
-   - `Authorization: Bearer <JWT>` para llamadas hechas por la UI propia, validadas contra el Clerk compartido del sistema.
+   - `Authorization: Bearer <JWT>` para llamadas hechas por la UI propia, validadas contra el Clerk de **esa misma app**.
    - `X-Service-Token: <secret>` para llamadas server-to-server entre apps. Cada par origen→destino tiene su propio secret rotable.
 3. **Formato de error**: `{ "error": { "code": "...", "message": "...", "details": {} } }` con HTTP status apropiado. Códigos en `SCREAMING_SNAKE_CASE`.
-4. **Paginación**: GET de listado devuelve `{ "data": [...], "pagination": { "total": N, "page": 1, "limit": 50, "has_more": true } }`. Default `limit=50`, máximo `limit=100`. (La Seller App usa 50 como default; otras apps pueden diferir en su implementación.)
+4. **Paginación**: GET de listado devuelve `{ "data": [...], "pagination": { "total": N, "page": 1, "limit": 20, "has_more": true } }`. Default `limit=20`, máximo `limit=100`.
 5. **Idempotencia**: todo `POST` que crea recursos acepta header `Idempotency-Key`. Si llega un retry con la misma key, devuelve la misma response sin duplicar.
 6. **Snapshots de datos cruzados**: cuando una app guarda datos cuya fuente de verdad está en otra (precio, nombre, dirección), guarda **snapshot al momento de la transacción**. Nunca consulta "en vivo" para mostrar histórico.
 7. **Notificaciones inter-apps**: son llamadas REST normales (`POST` o `PATCH`). Si fallan con 5xx o timeout, el emisor reintenta hasta 3 veces con backoff lineal (1s, 3s, 9s). No hay cola persistente: si tras los 3 intentos sigue fallando, se loguea el error y se reporta. Para el alcance académico del proyecto esto alcanza; en producción real reemplazaríamos por una cola.
-8. **Logs y trazabilidad**: cada request inter-app lleva `X-Request-Id: <uuid>`. La Seller App genera un UUID nuevo por cada llamada saliente en lugar de propagar el ID entrante; la correlación de logs entre apps se hace buscando por `sales_order_id` u otros IDs de negocio.
+8. **Logs y trazabilidad**: cada request inter-app lleva `X-Request-Id: <uuid>` que se propaga en cadena.
 9. **Multi-vendedor**: una orden de compra puede contener productos de varios vendedores. Cada app maneja la descomposición a su nivel:
    - Buyer App: `order` → `order_seller_groups` (1 por seller).
    - Seller App: una `sales_order` por seller (independientes).
@@ -45,7 +43,7 @@ Toda app del sistema cumple estas reglas. **Si alguna no las cumple, el sistema 
 
 ### 3.1 Datos propios (DB de Buyer App)
 
-- `buyer_profiles` — perfil local del comprador, vinculado a `clerk_user_id` del Clerk compartido.
+- `buyer_profiles` — perfil local del comprador, vinculado a `clerk_user_id` del Clerk-Buyer.
 - `addresses` — direcciones de envío del comprador.
 - `carts` y `cart_items` — carrito activo, con snapshot de precio al agregar.
 - `favorite_items` — wishlist.
@@ -264,13 +262,3 @@ Todas son llamadas REST con `X-Service-Token`, salvo la última que es el webhoo
 | **Mercado Pago** _(externo, único webhook real)_ | Pago actualizado                    | Payments    | `POST`  | `/webhooks/mercadopago`                          |
 
 ---
-
-## Anexo — Cambios respecto de `Docs Vieja/02-responsabilidades_doc_vieja.md`
-
-| Cambio | Qué era antes | Qué es ahora | Por qué cambió |
-|--------|--------------|--------------|----------------|
-| **Tabla §1: columna "Clerk propio"** | Cada app listada con su Clerk propio (`buyer.bicimarket`, `seller.bicimarket`, `shipping.bicimarket`, `payments.bicimarket`) | Sin columna "Clerk propio"; nota que todas las apps comparten un único Clerk | La arquitectura real usa un único Clerk. Las columnas individuales generaban la ilusión de que cada app tenía su propia instancia. |
-| **Regla 2: validación JWT** | "validadas contra el Clerk de **esa misma app**" | "validadas contra el Clerk compartido del sistema" | Con un único Clerk, todas las apps validan el mismo JWT. No existe "el Clerk de esa app" como instancia separada. |
-| **Regla 4: paginación por defecto** | Default `limit=20`, máximo `limit=100` | Default `limit=50`, máximo `limit=100`; aclaración que la Seller App usa 50 en su implementación | La implementación real de la Seller App usa 50. Se actualizó la documentación para reflejar el estado real del código. |
-| **Regla 8: X-Request-Id** | "cada request inter-app lleva `X-Request-Id: <uuid>` que se propaga en cadena" | La Seller App genera un UUID nuevo por cada llamada saliente en lugar de propagar el ID entrante; la correlación se hace por `sales_order_id` u otros IDs de negocio | Decisión de implementación: propagar el ID en cadena requeriría pasarlo entre contextos del servidor. Se optó por correlación vía IDs de negocio. |
-| **§3.1: buyer_profiles y Clerk** | "vinculado a `clerk_user_id` del Clerk-Buyer" | "vinculado a `clerk_user_id` del Clerk compartido" | No existe "Clerk-Buyer" como instancia separada. |
