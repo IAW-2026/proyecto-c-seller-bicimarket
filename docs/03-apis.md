@@ -21,7 +21,7 @@
 | Header            | Aplica a                             | Valor                                                     |
 | ----------------- | ------------------------------------ | --------------------------------------------------------- |
 | `Content-Type`    | POST/PATCH/PUT con body              | `application/json` (o `multipart/form-data` para uploads) |
-| `Authorization`   | Llamadas desde la UI propia          | `Bearer <JWT-de-Clerk-de-la-app>`                         |
+| `Authorization`   | Llamadas desde la UI propia          | `Bearer <JWT-de-Clerk>` (único Clerk compartido)          |
 | `X-Service-Token` | Llamadas server-to-server entre apps | secret rotable del par origen→destino                     |
 | `X-Request-Id`    | Toda llamada inter-app               | UUID. La Seller App genera uno nuevo por cada llamada saliente (no propaga el ID entrante). |
 | `Idempotency-Key` | POST que crea recursos               | UUID elegido por el cliente                               |
@@ -87,7 +87,7 @@ Montos en **centavos** como entero (`amount_cents: 1599900` = ARS 15.999,00). Cu
 
 # Buyer App — `https://buyer.bicimarket.com` **_Vercel URL_**
 
-Owner: Camila Rojas Fritz. Clerk: `buyer.bicimarket`.
+Owner: Camila Rojas Fritz. Clerk: compartido (`publicMetadata.role=buyer`).
 
 ## B1. Perfil del comprador
 
@@ -480,7 +480,7 @@ Solo si `status=pending_payment`.
 
 # Seller App — `https://seller.bicimarket.com` **_Vercel URL_**
 
-Owner: Pierino Spina. Clerk: `seller.bicimarket`.
+Owner: Pierino Spina. Clerk: compartido (`publicMetadata.role=seller`).
 
 ## S1. Perfil de vendedor
 
@@ -855,7 +855,7 @@ Cambia el `verification_status` de un perfil de vendedor.
 
 # Shipping App — `https://shipping.bicimarket.com` **_Vercel URL_**
 
-Owner: Enrique Seitz. Clerk: `shipping.bicimarket`.
+Owner: Enrique Seitz. Clerk: compartido (`publicMetadata.role=logistics`).
 
 ## SH1. Cotizaciones
 
@@ -1210,7 +1210,7 @@ Devuelve los envíos asignados al operador logueado.
 
 # Payments App — `https://payments.bicimarket.com` **_Vercel URL — admin UI únicamente_**
 
-Owner: Rocco Paoloni. Clerk: `payments.bicimarket` (**solo admins**: todo JWT debe traer `publicMetadata.admin=true` o se rechaza con 401).
+Owner: Rocco Paoloni. Clerk: compartido (**solo admins**: todo JWT debe traer `publicMetadata.admin=true` o se rechaza con 401).
 
 > **Importante**: buyers y sellers no se loguean en Payments App. Las vistas "Mis comprobantes" y "Mis liquidaciones" viven dentro de Buyer App y Seller App respectivamente, que consumen estos endpoints por REST con `X-Service-Token`. Los endpoints listados acá son: (a) los server-to-server que llaman las otras apps, (b) los administrativos que usa la admin UI con JWT-Payments + admin flag.
 
@@ -1545,3 +1545,20 @@ MERCADOPAGO_WEBHOOK_SECRET=…
 ```
 
 ---
+
+## Anexo — Cambios respecto de la versión anterior (`documentacion vieja/03-apis_VERSION_VIEJA.md`)
+
+| Cambio | Qué era antes | Qué es ahora | Por qué cambió |
+|--------|--------------|--------------|----------------|
+| **Prefijo `/api/v1/`** | Todos los endpoints sin prefijo (ej: `/api/products`, `/api/payments/charge`) | Todos bajo `/api/v1/...` | Versionado explícito; permite coexistir `/api/v2/...` para cambios incompatibles sin romper consumidores existentes. |
+| **Sin campo `stock`** | `GET /api/products` retornaba `"stock": "number"` en la respuesta | Campo eliminado de todas las respuestas | Decisión de alcance: stock ilimitado en esta etapa. Un campo que siempre sería `null` o ignorado no debe existir en el contrato. |
+| **Sin webhooks internos** | `POST /api/webhooks/payment-confirmed` (Payments → Seller) y `POST /api/webhooks/delivery-completed` (Shipping → Buyer) | Eliminados; reemplazados por `POST /api/v1/sales-orders` y `PATCH /api/v1/sales-orders/{id}/payment-status` | Los "webhooks" internos son solo llamadas REST con nombre distinto. El contrato explícito con body tipado, retry documentado y service token es más claro que un envelope genérico de webhook. |
+| **Autenticación tipada por origen** | Sin auth en ningún endpoint | UI→backend: `Bearer JWT`; S2S: `X-Service-Token` con secret por par; un token por cada par origen→destino | Necesario para que cada app pueda rechazar llamadas no autorizadas. Un único token compartido entre todas las apps no permite identificar ni revocar por app origen. |
+| **Formato de error estandarizado** | Sin especificación | `{ "error": { "code": "SCREAMING_SNAKE_CASE", "message": "…", "details": {} } }` con HTTP status apropiado | Sin un formato común cada app puede devolver errores en estructuras distintas, complicando el manejo en el cliente. |
+| **Paginación estandarizada** | Sin paginación en las respuestas | `{ "data": [...], "pagination": { "total", "page", "limit", "has_more", "next_cursor" } }`. Default `limit=50` en Seller App | Las listas sin paginación no escalan. El default de 50 es la implementación real de la Seller App (la especificación original decía 20 pero se ajustó al código). |
+| **Montos en centavos** | `"price": "number"`, `"amount": "number"` (tipo y moneda no especificados) | `price_cents: int`, `amount_cents: int`, con `currency: "ARS"` siempre presente | Evita errores de punto flotante en cálculos monetarios y ambigüedad de moneda. |
+| **IDs con prefijo de recurso** | `"id": "string"` genérico | `prd_…`, `ord_…`, `slp_…`, `sor_…`, etc. (estilo Stripe) | Los prefijos permiten identificar el tipo de recurso solo viendo el ID, lo que ayuda a debuggear y previene confundir IDs de tipos distintos. |
+| **`shipping_quote_id` en POST /sales-orders** | Ausente | Campo opcional `shipping_quote_id` aceptado en el body | La implementación real lo acepta y persiste en `sales_orders.shipping_quote_id` para trazabilidad con la cotización original. |
+| **Rutas adicionales de Seller App documentadas** | Ausente | `GET /api/v1/seller/products` (alias de conveniencia), `GET /api/v1/openapi.json`, `PATCH /api/v1/admin/seller-profiles/{id}/verification` | Estas rutas existen en el código y deben estar en la documentación para que no generen confusión. La respuesta minimal del endpoint admin está justificada en la misma sección. |
+| **`X-Request-Id`: generación nueva** | No existía | La Seller App genera un UUID nuevo en cada llamada saliente | Decisión de implementación: se sacrifica la propagación en cadena a cambio de simplicidad. La trazabilidad cruzada se logra por IDs de negocio. |
+| **Idempotencia** | Ausente | Todos los `POST` que crean recursos aceptan `Idempotency-Key`; si llega un retry con la misma key devuelve la misma response sin duplicar | Crítico para las llamadas S2S con retry: sin idempotencia un retry crearía duplicados (dos `sales_orders` para la misma orden). |

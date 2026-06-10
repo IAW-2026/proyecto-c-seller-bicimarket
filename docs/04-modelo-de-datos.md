@@ -16,7 +16,7 @@
 - **Snapshots**: cuando un campo viene de otra app (precio, dirección, nombre del producto), se guarda con sufijo `_snapshot` y **nunca se actualiza** una vez guardado.
 - **Referencias cruzadas**: los IDs de otras apps se guardan como **string opaco**, sin foreign key. La integridad la mantiene el ciclo de vida del negocio.
 - **Auditoría**: cualquier cambio de estado relevante (`order.status`, `shipment.status`, `payment.status`, `settlement.status`) deja registro en una tabla `*_status_history` (ver §6).
-- **Identidad**: cada app tiene su propio Clerk. `clerk_user_id` en cada perfil refiere al Clerk **de esa app**. No existe correlación entre Clerks: si un humano opera en varias apps, sus cuentas son independientes. Las apps no mantienen tablas de mapeo entre identidades.
+- **Identidad**: todas las apps comparten **un único Clerk**. `clerk_user_id` en cada perfil refiere al mismo usuario del Clerk compartido. Un humano puede tener perfiles en múltiples apps usando el mismo `clerk_user_id`; las apps no mantienen tablas de mapeo porque no hace falta.
 
 ---
 
@@ -30,7 +30,7 @@ Fuente de verdad de: `order_id`, carrito, direcciones del comprador, perfil de c
 | Campo | Tipo | Notas |
 |---|---|---|
 | `id` | string PK | `byp_…` |
-| `clerk_user_id` | string unique | viene del Clerk-Buyer |
+| `clerk_user_id` | string unique | viene del Clerk compartido |
 | `full_name` | string | snapshot del nombre, sincronizado desde Clerk en el primer login |
 | `email` | string unique | idem |
 | `phone` | string? | |
@@ -161,7 +161,7 @@ Fuente de verdad de: catálogo (`product`, precio, peso), perfil de vendedor, su
 | Campo | Tipo | Notas |
 |---|---|---|
 | `id` | string PK | `slp_…` |
-| `clerk_user_id` | string unique | Clerk-Seller |
+| `clerk_user_id` | string unique | Clerk compartido |
 | `legal_name` | string | |
 | `display_name` | string | |
 | `tax_id` | string | CUIT |
@@ -261,7 +261,7 @@ Fuente de verdad de: `shipment_id`, paquetes, eventos de tracking, operadores lo
 | Campo | Tipo | Notas |
 |---|---|---|
 | `id` | string PK | `lop_…` |
-| `clerk_user_id` | string unique | Clerk-Shipping |
+| `clerk_user_id` | string unique | Clerk compartido |
 | `full_name` | string | |
 | `phone` | string | |
 | `email` | string | |
@@ -391,7 +391,7 @@ Fuente de verdad de: `payment_id`, intentos, comprobantes, settlements (uno por 
 |---|---|---|
 | `id` | string PK | `pay_…` |
 | `order_id` | string | ref opaca |
-| `buyer_clerk_user_id` | string | de Clerk-Buyer (lo manda Buyer App) |
+| `buyer_clerk_user_id` | string | `clerk_user_id` del comprador, lo manda Buyer App |
 | `buyer_profile_id` | string | |
 | `amount_cents` | int | total cobrado al comprador |
 | `currency` | string | |
@@ -556,7 +556,7 @@ pending ─► paid (terminal)
 
 | Dato | Apps que lo tienen | Fuente de verdad | Estrategia |
 |---|---|---|---|
-| Identidad de usuario | Cada app tiene su Clerk | El Clerk de cada app | Cada Clerk es una base de usuarios independiente. No hay sync ni mapeo entre Clerks: si un humano opera en varias apps, sus cuentas son cuentas separadas. El sistema no las correlaciona. |
+| Identidad de usuario | Clerk compartido por todas las apps | El único Clerk del sistema | Un mismo `clerk_user_id` puede tener perfiles en múltiples apps. No hay mapeo necesario porque es el mismo usuario. |
 | Datos de perfil básicos (nombre, email) | Clerk de cada app + perfil local | Clerk de esa app | El perfil local se crea en el primer login (provisioning perezoso): el backend lee los claims del JWT y guarda el snapshot. Las actualizaciones siguen con cada login (refresh on demand). |
 | `order_id` y estado visible de la orden | Buyer (verdad), Seller, Shipping, Payments | **Buyer App** | Buyer es dueña; las demás guardan ref opaca y reciben `PATCH` REST cuando hay cambios. |
 | `shipment_id` y estado de envío | Shipping (verdad), Buyer, Seller | **Shipping App** | Shipping notifica con `PATCH` REST; Buyer y Seller guardan `shipping_status` espejo. |
@@ -566,3 +566,21 @@ pending ─► paid (terminal)
 | Comisión y net del settlement | Payments (verdad) | **Payments App** | Seller solo lee. |
 
 ---
+
+## Anexo — Cambios respecto de la versión anterior (`documentacion vieja/04-modelo-de-datos_VERSION_VIEJA.md`)
+
+| Cambio | Qué era antes | Qué es ahora | Por qué cambió |
+|--------|--------------|--------------|----------------|
+| **Sin modelo `User` compartido entre apps** | Un modelo `User` común a todas las apps (`id`, `email`, `firstName`, `lastName`, `imageUrl`, `role`) sincronizado via webhooks de Clerk | Cada app tiene su propio perfil local (`buyer_profiles`, `seller_profiles`, `logistics_operators`) con los campos que necesita; `clerk_user_id` refiere al usuario del Clerk compartido | Aunque hay un único Clerk, cada app mantiene sus propios datos de negocio del usuario. El mismo `clerk_user_id` puede tener perfil en Buyer App y Seller App simultáneamente. Lazy provisioning reemplaza los webhooks. |
+| **Seller App: sin `stock`, sin `Category`, sin `Inventory`** | `Product` tenía campo `stock: Int`; existían entidades `Category` e `Inventory` | `products` no tiene `stock`; sin tabla `categories` (la categoría es un enum en `products`); sin `inventory_movements` | Stock ilimitado por decisión de alcance. Categorías como enum simplifican la gestión y evitan una tabla de configuración extra en esta etapa. |
+| **Seller App: `seller_profiles` en lugar de `sellerId → User`** | `Product.sellerId` apuntaba directamente a `User` | `products.seller_profile_id → seller_profiles`; el perfil tiene `verification_status`, `tax_id`, `bank_account_reference`, `pickup_address` | Un usuario de Clerk no es un vendedor hasta que completa su perfil y es aprobado por un admin. Separar `seller_profiles` de la identidad Clerk permite el flujo `pending_review → verified` y almacenar datos de negocio del vendedor sin contaminar la capa de auth. |
+| **Seller App: `sales_orders` en lugar de `Sale`** | Entidad `Sale` con `status: PENDING/CONFIRMED/SHIPPED/COMPLETED` y `orderId` como referencia opaca | `sales_orders` con `fulfillment_status` (8 estados), `payment_status`, `shipping_status`, `items_subtotal_cents`, `shipping_cost_cents`, `shipping_address_snapshot` y tabla `sales_order_status_history` | La `sales_order` es una sub-orden real creada por Payments App vía REST tras el pago. Necesita rastrear tres dimensiones de estado independientes (fulfillment, pago, envío) y guardar snapshots porque los datos originales viven en otras apps. |
+| **Seller App: `product_images` como tabla separada** | `Product.images: String[]` (array en la misma fila) | Tabla `product_images` con `id`, `product_id`, `url`, `position` | Permite ordenar imágenes, agregar/eliminar individualmente, y en el futuro asociar metadatos por imagen. Un array en la fila no permite integridad referencial ni operaciones individuales. |
+| **Seller App: dimensiones en `products`** | Ausente | `weight_grams`, `length_cm`, `width_cm`, `height_cm` en `products` | Shipping App necesita peso y dimensiones para cotizar y crear paquetes. Sin estos campos no se puede completar el flujo de envío. |
+| **Seller App: estados de producto ampliados** | `status: ACTIVE / PAUSED / SOLD_OUT` | `status: draft / active / paused / archived` | `draft` es el estado inicial antes de tener imágenes y datos completos. `archived` reemplaza a `SOLD_OUT` (que no aplica con stock ilimitado) para soft delete. |
+| **Sin `Review` en Buyer App** | Entidad `Review` con rating y comment | Eliminada | Fuera de scope de la etapa. |
+| **Buyer App: `order_seller_groups`** | `Order` simple con items directos | `orders → order_seller_groups (1 por seller) → order_items` | Necesario para el modelo multi-vendedor: cada seller group tiene su propio estado de envío, costo de shipping y lifecycle independiente. |
+| **Snapshots explícitos** | Los datos cruzados se referenciaban por ID sin explicación | Convención `_snapshot` para todo dato cuya fuente de verdad está en otra app; nunca se actualiza post-creación | Garantiza que el historial de una orden refleje los valores al momento de la transacción, incluso si el precio del producto cambia después. |
+| **Tablas `*_status_history`** | Ausente | `order_status_history`, `sales_order_status_history` | Auditoría de cambios de estado: quién cambió, cuándo, desde qué estado, con qué payload. Necesario para debugging y disputas. |
+| **Estrategia de consistencia: sin webhooks de Clerk** | "Cada app tiene un webhook `/api/webhooks/clerk` que recibe `user.created`/`user.updated`" | Lazy provisioning: el perfil local se crea en el primer request autenticado leyendo los claims del JWT | Elimina la necesidad de exponer un endpoint público con validación de firma y manejo de retry. El trade-off es que los cambios de Clerk Dashboard solo se reflejan al próximo login, aceptable para el alcance académico. |
+| **Referencias cruzadas: string opaco sin FK** | Los IDs de otras apps se describían como referencias sin aclarar si eran FK | Explicitado: IDs de otras apps son strings opacos sin foreign key en la DB local; la integridad la mantiene el ciclo de negocio | Sin FK entre bases de datos es imposible técnicamente; documentarlo evita que alguien intente crearlas y se confunda con errores de integridad referencial. |

@@ -4,31 +4,32 @@
 
 ---
 
-## 1. Mapa de Clerks
+## 1. Clerk compartido
 
-| App | Clerk app name | Rol funcional | Quién se registra | Audiencia del JWT |
-|---|---|---|---|---|
-| Buyer App | `buyer.bicimarket` | `buyer` (implícito por estar en este Clerk) | Cualquiera que quiera comprar | `bicimarket-buyer-api` |
-| Seller App | `seller.bicimarket` | `seller` | Vendedores aprobados (admin pasa de `pending_review` a `verified`) | `bicimarket-seller-api` |
-| Shipping App | `shipping.bicimarket` | `logistics` | Operadores logísticos invitados por admin | `bicimarket-shipping-api` |
-| Payments App | `payments.bicimarket` | `admin` (obligatorio) | **Solo admins del marketplace** (refunds manuales, payouts, settlements). Buyers y sellers nunca se loguean acá. | `bicimarket-payments-api` |
+Todas las apps de BiciMarket comparten **una única instancia de Clerk**. Hay un solo proyecto Clerk para todo el sistema.
 
-> Cada Clerk emite JWT con un `aud` (audience) propio. Las apps validan que el token sea de **su** Clerk, nunca de otro. Si Buyer App recibe un JWT firmado por Clerk-Seller, lo rechaza.
+| Concepto | Descripción |
+|---|---|
+| Instancia | Una sola (`bicimarket`) compartida por Buyer App, Seller App, Shipping App y Payments App |
+| Rol del usuario | Determinado por `publicMetadata.role` en el JWT: `buyer` \| `seller` \| `logistics` |
+| Flag admin | `publicMetadata.admin: true` (compatible con cualquier rol) |
+| JWT | Todas las apps validan contra el mismo Clerk; el `clerk_user_id` (`sub`) identifica al mismo humano en todo el sistema |
+| Multi-rol | Un mismo usuario puede tener varios perfiles en distintas apps (ej: alguien que vende y también compra) |
 
-> **Sin identidad cruzada entre Clerks.** Cada Clerk es una base de usuarios independiente. Si un humano opera en varias apps, tiene cuentas separadas, una por Clerk; no se correlacionan entre sí. Las vistas que en otra arquitectura habrían vivido en una app "Payments para usuarios" (mis comprobantes, mis liquidaciones) viven dentro de las apps fuente: Buyer App muestra "Mis comprobantes" consumiendo Payments por REST; Seller App muestra "Mis liquidaciones" igual.
+> Las vistas "Mis comprobantes" y "Mis liquidaciones" viven en Buyer App y Seller App respectivamente. Esas apps consumen los datos de Payments por REST con `X-Service-Token`; el usuario no se loguea en Payments.
 
 ---
 
 ## 2. Asignación de rol `admin`
 
-Hay un rol transversal: `admin`. Como no queremos un quinto Clerk admin, **cada Clerk de usuarios finales soporta `publicMetadata.admin: true`** para el reducido grupo de admins del marketplace. Estos humanos típicamente tienen cuenta en varios Clerks con la flag prendida.
+`admin` es una flag transversal que se combina con el rol funcional. Se setea en Clerk Dashboard como `publicMetadata.admin = true`.
 
-| Clerk | Cómo se marca un admin | Endpoint donde aplica |
-|---|---|---|
-| `buyer.bicimarket` | `publicMetadata.admin = true` | Acceso a `GET /admin/orders`, etc. |
-| `seller.bicimarket` | `publicMetadata.admin = true` | Endpoints admin de Seller (verifs, etc.). |
-| `shipping.bicimarket` | `publicMetadata.admin = true` | Reasignaciones, cambio manual de status, alta de operadores. |
-| `payments.bicimarket` | **No aplica como flag opcional**: todo usuario de Clerk-Payments es admin por definición. La app rechaza JWT sin `publicMetadata.admin=true`. | Refunds manuales, payouts manuales, cierre de settlements. |
+| App | Dónde aplica la flag admin |
+|---|---|
+| Buyer App | Acceso a `GET /admin/orders`, etc. |
+| Seller App | Endpoints admin de Seller (verificación de perfiles, etc.) |
+| Shipping App | Reasignaciones, cambio manual de status, alta de operadores logísticos |
+| Payments App | La app rechaza cualquier JWT sin `publicMetadata.admin=true` — en esta app todos los usuarios deben ser admin |
 
 Promoción a admin: la hace un admin existente vía Clerk Dashboard. Sin self-service.
 
@@ -67,18 +68,29 @@ Cuando se borra una cuenta en Clerk, no nos enteramos automáticamente. Si hace 
 
 ---
 
-## 4. Claims del JWT por app
+## 4. Claims del JWT
 
-Cada Clerk emite tokens con la siguiente forma. Las apps validan los claims indicados.
+El único Clerk emite tokens con la siguiente forma. Todas las apps validan contra la misma instancia.
 
-| App | Claims requeridos | Validación |
-|---|---|---|
-| Buyer | `sub` (clerk_user_id), `email`, `email_verified=true` | Token firmado por Clerk-Buyer (`iss=https://clerk.buyer.bicimarket.com`), `aud=bicimarket-buyer-api`. |
-| Seller | mismos | Token de Clerk-Seller. Además: el `seller_profile` asociado debe estar `verified` (chequeo en backend). |
-| Shipping | mismos | Token de Clerk-Shipping. El `logistics_operator` asociado debe estar `active`. |
-| Payments | mismos + `publicMetadata.admin=true` | Token de Clerk-Payments. Sin flag admin, 401. No hay endpoints públicos para buyers/sellers en Payments. |
+**Claims requeridos (comunes a todas las apps):**
 
-Operaciones `admin` en Buyer/Seller/Shipping requieren además `publicMetadata.admin === true` en el JWT del Clerk correspondiente.
+| Claim | Descripción |
+|---|---|
+| `sub` | `clerk_user_id`, identificador único del usuario |
+| `email` | Email del usuario |
+| `email_verified` | Debe ser `true` |
+| `publicMetadata.role` | `buyer` \| `seller` \| `logistics` |
+| `publicMetadata.admin` | `true` si es admin (opcional en Buyer/Seller/Shipping; obligatorio en Payments) |
+
+**Validaciones adicionales por app (en backend, no en el JWT):**
+
+| App | Validación extra |
+|---|---|
+| Seller | El `seller_profile` asociado debe estar `verified` para activar productos |
+| Shipping | El `logistics_operator` asociado debe tener `status=active` |
+| Payments | JWT sin `publicMetadata.admin=true` → 401, sin excepción |
+
+Operaciones `admin` en cualquier app requieren `publicMetadata.admin === true`.
 
 ---
 
@@ -86,11 +98,11 @@ Operaciones `admin` en Buyer/Seller/Shipping requieren además `publicMetadata.a
 
 ### 5.1 Reglas
 
-1. **El rol funcional es implícito por el Clerk**. Si entrás con JWT de Clerk-Seller, sos seller. No hay "agregar/quitar rol".
-2. **Un humano = N cuentas Clerk** (una por app donde quiera operar). Mismo email recomendado pero **no obligatorio** — el sistema no correlaciona identidades entre Clerks.
-3. **`admin` es transversal** y vive en `publicMetadata.admin` en cada Clerk donde corresponda. En Clerk-Payments es obligatoria.
-4. **El alta de seller no es libre**: el `seller_profile` se crea como `pending_review` y solo un admin lo pasa a `verified`. Hasta entonces, no puede activar productos.
-5. **El alta de operador logístico tampoco es libre**: requiere invitación de un admin.
+1. **El rol funcional viene en `publicMetadata.role`**. Se setea en Clerk Dashboard al crear o aprobar la cuenta. Sin ese claim, la app rechaza o trata al usuario como sin rol.
+2. **Un humano = una cuenta Clerk** para todo el sistema. Puede tener perfiles en múltiples apps (ej: el mismo usuario puede ser comprador y vendedor).
+3. **`admin` es transversal** y vive en `publicMetadata.admin = true`. En Payments es obligatoria; en las demás apps habilita endpoints de administración.
+4. **El alta de seller no es libre**: el `seller_profile` se crea manualmente por el vendedor con `PUT /api/v1/seller-profile/me` y queda como `pending_review`; solo un admin lo pasa a `verified`. Hasta entonces no puede activar productos.
+5. **El alta de operador logístico tampoco es libre**: requiere que un admin lo cree con `POST /api/v1/logistics-operators` y le asigne `publicMetadata.role=logistics` en Clerk.
 6. **Buyers y sellers no se loguean en Payments App.** Para ver comprobantes entran a Buyer App; para ver liquidaciones entran a Seller App. Esas apps consumen los datos de Payments por REST con `X-Service-Token`.
 
 ### 5.2 Flujo de alta — Comprador
@@ -98,14 +110,15 @@ Operaciones `admin` en Buyer/Seller/Shipping requieren además `publicMetadata.a
 ```mermaid
 sequenceDiagram
     actor U as Usuario
-    participant CB as Clerk-Buyer
+    participant CL as Clerk (compartido)
     participant B as Buyer App
 
-    U->>CB: Sign up con email + password (o Google)
-    CB-->>U: Email de verificación
-    U->>CB: Verifica email
+    U->>CL: Sign up con email + password (o Google)
+    CL-->>U: Email de verificación
+    U->>CL: Verifica email
+    Note over CL: Admin setea publicMetadata.role=buyer
     U->>B: Primer login con JWT
-    B->>B: middleware lee el JWT y crea buyer_profile (status active)
+    B->>B: middleware lee el JWT y crea buyer_profile
     B-->>U: ya puede usar Buyer App
 ```
 
@@ -114,13 +127,14 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     actor U as Usuario
-    participant CS as Clerk-Seller
+    participant CL as Clerk (compartido)
     participant S as Seller App
     actor A as Admin
 
-    U->>CS: Sign up con email + password
-    CS-->>U: Email de verificación
-    U->>CS: Verifica email
+    U->>CL: Sign up con email + password
+    CL-->>U: Email de verificación
+    U->>CL: Verifica email
+    Note over CL: Admin setea publicMetadata.role=seller
     U->>S: Primer login con JWT
     S->>S: requireAuth() hace upsert en tabla User (email snapshot)
     Note over S: SellerProfile NO se crea aquí
@@ -136,12 +150,12 @@ sequenceDiagram
 sequenceDiagram
     actor A as Admin
     actor OP as Operador
-    participant CS as Clerk-Shipping
+    participant CL as Clerk (compartido)
     participant SH as Shipping App
 
-    A->>CS: Crea invitación con email del operador
-    CS-->>OP: Email de invitación
-    OP->>CS: Acepta invitación + setea password
+    A->>CL: Crea cuenta del operador con publicMetadata.role=logistics
+    CL-->>OP: Email de bienvenida / invitación
+    OP->>CL: Setea password / verifica
     A->>SH: POST /api/v1/logistics-operators (clerk_user_id, datos del vehículo)
     SH->>SH: crea logistics_operator (status=active)
     OP->>SH: Login → middleware verifica que existe en logistics_operators y devuelve assignments
@@ -153,12 +167,11 @@ sequenceDiagram
 sequenceDiagram
     actor A1 as Admin existente
     actor A2 as Nuevo admin
-    participant CP as Clerk-Payments
+    participant CL as Clerk (compartido)
     participant P as Payments App
 
-    A1->>CP: Crea cuenta con publicMetadata.admin=true
-    CP-->>A2: Email de bienvenida
-    A2->>CP: Setea password / verifica
+    A1->>CL: Setea publicMetadata.admin=true en la cuenta de A2
+    CL-->>A2: Notificación / acceso habilitado
     A2->>P: Login con JWT (admin=true)
     P->>P: middleware valida admin flag y crea admin_profile local
     A2->>P: ya puede operar refunds, payouts y settlements
@@ -166,18 +179,26 @@ sequenceDiagram
 
 ---
 
-## 6. Variables de entorno por app
+## 6. Variables de entorno (Clerk)
 
-Cada app:
+Todas las apps usan las mismas claves del único Clerk del sistema:
 
 ```env
-# Clerk de la app
-CLERK_PUBLISHABLE_KEY=pk_live_…
+# Clerk compartido — mismas claves en todas las apps
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_…
 CLERK_SECRET_KEY=sk_live_…
-CLERK_ISSUER=https://clerk.<app>.bicimarket.com
-CLERK_AUDIENCE=bicimarket-<app>-api
 ```
 
-No se comparten entre apps. Si una app necesita el `CLERK_SECRET_KEY` de otra, está mal — no debe.
-
 ---
+
+## Anexo — Cambios respecto de la versión anterior (`documentacion vieja/05-usuarios_VERSION_VIEJA.md`)
+
+| Cambio | Qué era antes | Qué es ahora | Por qué cambió |
+|--------|--------------|--------------|----------------|
+| **Rol explícito en `publicMetadata.role`** | `metadata.role: "buyer / seller / operator / admin"` en el JWT | `publicMetadata.role`: `buyer` \| `seller` \| `logistics`; `publicMetadata.admin: true` como flag adicional | `publicMetadata` es el campo estándar de Clerk para datos de negocio no modificables por el usuario. Separar `role` de `admin` permite que un usuario sea seller y admin al mismo tiempo sin conflicto. |
+| **Multi-rol formalizado** | "Un vendedor también puede comprar" — mencionado pero sin estructura | Explicitado en §5.1: un mismo `clerk_user_id` puede tener `buyer_profile` en Buyer App y `seller_profile` en Seller App simultáneamente | La versión vieja lo mencionaba implícitamente; la versión actual lo documenta como comportamiento esperado del sistema. |
+| **Sincronización: lazy provisioning en vez de webhooks** | Webhook `user.created`/`user.updated` → cada app tenía `POST /api/webhooks/clerk` | Provisioning perezoso: el primer request autenticado crea el perfil local leyendo claims del JWT | Elimina la necesidad de un endpoint de webhook público con validación de firma y retry. Trade-off conocido: cambios en Clerk Dashboard se reflejan solo al próximo login. Aceptable para el alcance académico. |
+| **Seller App: SellerProfile no se auto-crea en el primer login** | Implícito que el perfil se creaba automáticamente al primer login | `requireAuth()` hace upsert en tabla auxiliar `User` (intencional). `SellerProfile` **no se crea automáticamente**: el vendedor llama a `PUT /api/v1/seller-profile/me`. Hasta entonces los endpoints devuelven `404 SELLER_PROFILE_NOT_FOUND`. | Crear el perfil vacío automáticamente generaría registros con datos faltantes obligatorios (`legal_name`, `tax_id`, `pickup_address`). Mejor forzar que el vendedor los complete explícitamente. |
+| **Alta de vendedor requiere aprobación de admin** | No documentado | `seller_profile` se crea con `verification_status=pending_review`; un admin lo pasa a `verified` antes de poder activar productos | Control de calidad del marketplace: evita publicaciones de cuentas sin verificar. |
+| **Alta de operador logístico no es libre** | No documentado | Admin crea `POST /api/v1/logistics-operators` y asigna `publicMetadata.role=logistics` en Clerk | Los operadores tienen acceso a datos de envío de terceros; no deben poder registrarse solos. |
+| **Payments App: solo admins** | Payments tenía usuarios finales | Payments App solo acepta JWT con `publicMetadata.admin=true`. Buyers y sellers ven sus datos en sus propias apps consumiendo Payments por REST | Simplifica Payments: no gestiona usuarios finales. Las apps fuente renderizan las vistas de usuario. |

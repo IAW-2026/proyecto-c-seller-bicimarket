@@ -6,12 +6,14 @@
 
 ## 1. Distribución
 
-| App          | Responsable        | Repositorio                                                         | Clerk propio                                                            |
-| ------------ | ------------------ | ------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| Buyer App    | Camila Rojas Fritz | https://github.com/camilarojasfritz/proyecto-c-buyer-camilarojas    | Sí (`buyer.bicimarket`)                                                 |
-| Seller App   | Pierino Spina      | https://github.com/Spinapierino7/proyecto-c-seller-pierinospina.git | Sí (`seller.bicimarket`)                                                |
-| Shipping App | Enrique Seitz      | https://github.com/Enry6tz/proyecto-c-shipping-enriqueseitz         | Sí (`shipping.bicimarket`)                                              |
-| Payments App | Rocco Paoloni      | https://github.com/roccopaoloni/proyecto-c-payments-roccopaoloni    | Sí (`payments.bicimarket`), **solo para admins** (no buyers ni sellers) |
+| App          | Responsable        | Repositorio                                                         |
+| ------------ | ------------------ | ------------------------------------------------------------------- |
+| Buyer App    | Camila Rojas Fritz | https://github.com/camilarojasfritz/proyecto-c-buyer-camilarojas    |
+| Seller App   | Pierino Spina      | https://github.com/Spinapierino7/proyecto-c-seller-pierinospina.git |
+| Shipping App | Enrique Seitz      | https://github.com/Enry6tz/proyecto-c-shipping-enriqueseitz         |
+| Payments App | Rocco Paoloni      | https://github.com/roccopaoloni/proyecto-c-payments-roccopaoloni    |
+
+> Todas las apps comparten **una única instancia de Clerk**. Ver `05-usuarios.md`.
 
 ---
 
@@ -23,7 +25,7 @@ Toda app del sistema cumple estas reglas. **Si alguna no las cumple, el sistema 
 
 1. **Versionado**: todos los endpoints viven bajo `/api/v1/...`.
 2. **Autenticación**:
-   - `Authorization: Bearer <JWT>` para llamadas hechas por la UI propia, validadas contra el Clerk de **esa misma app**.
+   - `Authorization: Bearer <JWT>` para llamadas hechas por la UI propia, validadas contra el Clerk compartido del sistema.
    - `X-Service-Token: <secret>` para llamadas server-to-server entre apps. Cada par origen→destino tiene su propio secret rotable.
 3. **Formato de error**: `{ "error": { "code": "...", "message": "...", "details": {} } }` con HTTP status apropiado. Códigos en `SCREAMING_SNAKE_CASE`.
 4. **Paginación**: GET de listado devuelve `{ "data": [...], "pagination": { "total": N, "page": 1, "limit": 50, "has_more": true } }`. Default `limit=50`, máximo `limit=100`. (La Seller App usa 50 como default; otras apps pueden diferir en su implementación.)
@@ -43,7 +45,7 @@ Toda app del sistema cumple estas reglas. **Si alguna no las cumple, el sistema 
 
 ### 3.1 Datos propios (DB de Buyer App)
 
-- `buyer_profiles` — perfil local del comprador, vinculado a `clerk_user_id` del Clerk-Buyer.
+- `buyer_profiles` — perfil local del comprador, vinculado a `clerk_user_id` del Clerk compartido.
 - `addresses` — direcciones de envío del comprador.
 - `carts` y `cart_items` — carrito activo, con snapshot de precio al agregar.
 - `favorite_items` — wishlist.
@@ -262,3 +264,16 @@ Todas son llamadas REST con `X-Service-Token`, salvo la última que es el webhoo
 | **Mercado Pago** _(externo, único webhook real)_ | Pago actualizado                    | Payments    | `POST`  | `/webhooks/mercadopago`                          |
 
 ---
+
+## Anexo — Cambios respecto de la versión anterior (`documentacion vieja/02-responsabilidades_VERSION_VIEJA.md`)
+
+| Cambio | Qué era antes | Qué es ahora | Por qué cambió |
+|--------|--------------|--------------|----------------|
+| **Tabla de asignación con nombres reales** | Placeholders `<!-- Nombre -->` y `<!-- link -->` sin responsables ni repos | Nombres del equipo (Camila, Pierino, Enrique, Rocco) con repos reales | La versión vieja era un template sin completar. |
+| **Entidades propias redefinidas** | Seller App tenía `Products, Categories, Inventory, Sales`. Buyer tenía `Orders, CartItems, Reviews, Addresses` | Seller: `seller_profiles, products, product_images, sales_orders, sales_order_items`. Buyer: `buyer_profiles, addresses, carts, cart_items, favorite_items, orders, order_seller_groups, order_items` | Las entidades viejas correspondían a un modelo monolítico. La arquitectura actual separa perfiles de vendedor del catálogo, elimina `Inventory` (stock ilimitado), reemplaza `Sale` por `sales_order` (sub-orden real recibida de Payments), y descompone `Order` en grupos por vendedor. |
+| **Sin `Reviews`** | Buyer App tenía `Reviews` | Eliminado | Fuera del scope de la etapa actual. |
+| **Tabla de comunicación inter-apps reescrita** | 6 filas simples sin prefijo `/api/v1/`, sin auth, con webhooks genéricos (`POST /api/webhooks/payment-confirmed`) | Tabla maestra con 17 filas, todos los endpoints con `/api/v1/`, verbo HTTP correcto, auth diferenciada por tipo de llamada | Los endpoints viejos eran bocetos. La tabla nueva es el contrato real de integración que cada equipo implementa. |
+| **Reglas transversales explicitadas** | Ausente | §2: versionado, auth, formato de error, paginación, idempotencia, snapshots, retries, trazabilidad, multi-vendedor | Necesario para que todas las apps sean compatibles sin coordinación manual en cada endpoint. |
+| **Paginación: default 50** | No existía la regla | Default `limit=50`, máximo `limit=100` (aclaración: la Seller App usa 50) | Decisión de implementación de la Seller App. Ver detalle en §2.4. |
+| **`X-Request-Id`: generación nueva por salto** | No existía la regla | La Seller App genera UUID nuevo en cada llamada saliente en lugar de propagar el entrante | Simplificación de implementación. La correlación de logs se hace por `sales_order_id` u otros IDs de negocio. |
+| **Compromisos y no-compromisos por app** | Ausente | §3–§6: cada app tiene su lista de `compromisos públicos`, `no asumidos`, `consume de` y `recibe de` | Delimitar responsabilidades evita que una app empiece a implementar lógica que pertenece a otra (ej: Seller no factura, no controla stock real). |
