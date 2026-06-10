@@ -5,7 +5,7 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ sellerProfileId: string }> }
 ) {
-  const tokenError = requireServiceToken(request);
+  const tokenError = requireServiceToken(request, "SHIPPING_TO_SELLER_SERVICE_TOKEN");
   if (tokenError) return tokenError;
 
   const { sellerProfileId } = await params;

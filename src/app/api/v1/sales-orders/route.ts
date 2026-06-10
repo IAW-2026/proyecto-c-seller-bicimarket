@@ -241,7 +241,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   // Called by Payments App server-to-server after payment approval
-  const tokenError = requireServiceToken(request);
+  const tokenError = requireServiceToken(request, "PAYMENTS_TO_SELLER_SERVICE_TOKEN");
   if (tokenError) return tokenError;
 
   const idempotencyKey = request.headers.get("Idempotency-Key");

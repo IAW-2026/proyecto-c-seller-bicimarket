@@ -83,7 +83,7 @@ Clerk handles auth. The middleware (`src/middleware.ts`) uses `clerkMiddleware`:
 - Public routes: `/`, `/sign-in`, `/sign-up`, `/api/webhooks`, and the catalog endpoints
 - Protected routes (e.g. `/dashboard`): call `auth.protect()`
 
-**Lazy provisioning:** Users are created in Clerk first. A local `User` record is created on first authenticated request; email/name are synced from JWT claims.
+**Auth flow:** `requireAuth()` in `src/lib/api-utils.ts` upserts the user's email into the legacy `User` table on every authenticated request (intentional: keeps a local session record). The real seller data lives in `SellerProfile`, which is **not** auto-created — the vendor must call `PUT /api/v1/seller-profile/me` explicitly. `requireSellerProfile()` returns `404 SELLER_PROFILE_NOT_FOUND` if no profile exists yet.
 
 JWT requires `sub` (Clerk user ID), `email`, `email_verified=true`. Admin endpoints check `publicMetadata.admin=true`.
 

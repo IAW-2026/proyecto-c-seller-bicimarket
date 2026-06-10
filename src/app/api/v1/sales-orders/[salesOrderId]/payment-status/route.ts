@@ -6,7 +6,7 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ salesOrderId: string }> }
 ) {
-  const tokenError = requireServiceToken(request);
+  const tokenError = requireServiceToken(request, "PAYMENTS_TO_SELLER_SERVICE_TOKEN");
   if (tokenError) return tokenError;
 
   const { salesOrderId } = await params;

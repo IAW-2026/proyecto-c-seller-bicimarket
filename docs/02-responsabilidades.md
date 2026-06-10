@@ -26,11 +26,11 @@ Toda app del sistema cumple estas reglas. **Si alguna no las cumple, el sistema 
    - `Authorization: Bearer <JWT>` para llamadas hechas por la UI propia, validadas contra el Clerk de **esa misma app**.
    - `X-Service-Token: <secret>` para llamadas server-to-server entre apps. Cada par origen→destino tiene su propio secret rotable.
 3. **Formato de error**: `{ "error": { "code": "...", "message": "...", "details": {} } }` con HTTP status apropiado. Códigos en `SCREAMING_SNAKE_CASE`.
-4. **Paginación**: GET de listado devuelve `{ "data": [...], "pagination": { "total": N, "page": 1, "limit": 20, "has_more": true } }`. Default `limit=20`, máximo `limit=100`.
+4. **Paginación**: GET de listado devuelve `{ "data": [...], "pagination": { "total": N, "page": 1, "limit": 50, "has_more": true } }`. Default `limit=50`, máximo `limit=100`. (La Seller App usa 50 como default; otras apps pueden diferir en su implementación.)
 5. **Idempotencia**: todo `POST` que crea recursos acepta header `Idempotency-Key`. Si llega un retry con la misma key, devuelve la misma response sin duplicar.
 6. **Snapshots de datos cruzados**: cuando una app guarda datos cuya fuente de verdad está en otra (precio, nombre, dirección), guarda **snapshot al momento de la transacción**. Nunca consulta "en vivo" para mostrar histórico.
 7. **Notificaciones inter-apps**: son llamadas REST normales (`POST` o `PATCH`). Si fallan con 5xx o timeout, el emisor reintenta hasta 3 veces con backoff lineal (1s, 3s, 9s). No hay cola persistente: si tras los 3 intentos sigue fallando, se loguea el error y se reporta. Para el alcance académico del proyecto esto alcanza; en producción real reemplazaríamos por una cola.
-8. **Logs y trazabilidad**: cada request inter-app lleva `X-Request-Id: <uuid>` que se propaga en cadena.
+8. **Logs y trazabilidad**: cada request inter-app lleva `X-Request-Id: <uuid>`. La Seller App genera un UUID nuevo por cada llamada saliente en lugar de propagar el ID entrante; la correlación de logs entre apps se hace buscando por `sales_order_id` u otros IDs de negocio.
 9. **Multi-vendedor**: una orden de compra puede contener productos de varios vendedores. Cada app maneja la descomposición a su nivel:
    - Buyer App: `order` → `order_seller_groups` (1 por seller).
    - Seller App: una `sales_order` por seller (independientes).

@@ -23,7 +23,7 @@
 | `Content-Type`    | POST/PATCH/PUT con body              | `application/json` (o `multipart/form-data` para uploads) |
 | `Authorization`   | Llamadas desde la UI propia          | `Bearer <JWT-de-Clerk-de-la-app>`                         |
 | `X-Service-Token` | Llamadas server-to-server entre apps | secret rotable del par origen→destino                     |
-| `X-Request-Id`    | Toda llamada inter-app               | UUID que se propaga en cadena                             |
+| `X-Request-Id`    | Toda llamada inter-app               | UUID. La Seller App genera uno nuevo por cada llamada saliente (no propaga el ID entrante). |
 | `Idempotency-Key` | POST que crea recursos               | UUID elegido por el cliente                               |
 
 ### 0.3 Formato de error
@@ -52,7 +52,7 @@
 
 ### 0.4 Paginación estándar
 
-Querystring: `?page=1&limit=20&sort=-created_at&q=...`.
+Querystring: `?page=1&limit=50&sort=-created_at&q=...`.
 
 ```json
 {
@@ -62,12 +62,14 @@ Querystring: `?page=1&limit=20&sort=-created_at&q=...`.
   "pagination": {
     "total": 134,
     "page": 1,
-    "limit": 20,
+    "limit": 50,
     "has_more": true,
     "next_cursor": null
   }
 }
 ```
+
+> **Seller App**: default `limit=50`, máximo `limit=100`. `next_cursor` siempre es `null` (paginación por página, no por cursor).
 
 ### 0.5 IDs
 
@@ -730,7 +732,8 @@ Soft delete: pasa a `status=archived`. **Response 204**.
     "postal_code": "C1043",
     "country": "AR"
   },
-  "payment_id": "pay_01H…"
+  "payment_id": "pay_01H…",
+  "shipping_quote_id": "qte_01H…"
 }
 ```
 
@@ -778,6 +781,14 @@ Cuando pasa a `ready_to_ship`, Seller llama internamente a Shipping `POST /shipm
 
 **Response 200**.
 
+### `GET /api/v1/seller/products` (privado, vendedor — alias de conveniencia)
+
+Alias interno de `GET /api/v1/seller-profile/me/products`. Devuelve los productos del vendedor autenticado en todos los estados (`draft`, `active`, `paused`, `archived`). Misma forma de respuesta paginada.
+
+**Auth**: Bearer JWT.
+
+---
+
 ### `PATCH /api/v1/sales-orders/{salesOrderId}/payment-status` (server-to-server, lo llama Payments)
 
 **Request**
@@ -809,7 +820,34 @@ Cuando pasa a `ready_to_ship`, Seller llama internamente a Shipping `POST /shipm
 
 ---
 
-## S5. Inventario
+## S5. Rutas auxiliares
+
+### `GET /api/v1/openapi.json`
+
+Devuelve el schema OpenAPI de la Seller App en formato JSON. Ruta pública, sin auth. Solo para uso en desarrollo/documentación.
+
+### `PATCH /api/v1/admin/seller-profiles/{sellerProfileId}/verification`
+
+**Auth**: Bearer JWT con `publicMetadata.admin=true`.
+
+Cambia el `verification_status` de un perfil de vendedor.
+
+**Request**: `{ "verification_status": "verified" }` — valores válidos: `pending_review` | `verified` | `suspended`.
+
+**Response 200** (respuesta minimal, solo los campos actualizados):
+
+```json
+{
+  "id": "slp_01H…",
+  "verification_status": "verified"
+}
+```
+
+> La respuesta devuelve solo `id` y `verification_status`, no el perfil completo. Diseño deliberado para este endpoint administrativo.
+
+---
+
+## S6. Inventario
 
 > **No aplica en esta etapa.** Por restricción del proyecto el stock es ilimitado, así que no existen los endpoints `PATCH /products/{id}/stock` ni `GET /inventory-movements` ni el recurso `inventory_movements`. Esta sección queda como referencia futura por si en una etapa posterior se decide habilitar control de inventario; mientras tanto, ningún cliente debe llamar a endpoints de stock porque la Seller App no los expone.
 

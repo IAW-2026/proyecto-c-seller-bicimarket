@@ -71,16 +71,21 @@ export async function requireSellerProfile() {
 }
 
 // ── Service token validation ─────────────────────────────────
+//
+// Each caller app has its own secret (per docs §2 rule 2 / §7).
+// Env vars: PAYMENTS_TO_SELLER_SERVICE_TOKEN, SHIPPING_TO_SELLER_SERVICE_TOKEN,
+//           BUYER_TO_SELLER_SERVICE_TOKEN.
+// Pass the expected env var name so each route validates against the right secret.
 
-export function validateServiceToken(request: Request): boolean {
+export function validateServiceToken(request: Request, envVar: string): boolean {
   const token = request.headers.get("X-Service-Token");
-  const expected = process.env.INCOMING_SERVICE_TOKEN;
+  const expected = process.env[envVar];
   if (!expected) return false;
   return token === expected;
 }
 
-export function requireServiceToken(request: Request) {
-  if (!validateServiceToken(request)) return Errors.unauthorized();
+export function requireServiceToken(request: Request, envVar: string) {
+  if (!validateServiceToken(request, envVar)) return Errors.unauthorized();
   return null;
 }
 
