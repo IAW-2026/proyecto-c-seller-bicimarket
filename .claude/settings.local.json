@@ -10,7 +10,8 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:ui.shadcn.com)",
       "Bash(npm install *)",
-      "Bash(npx prisma *)"
+      "Bash(npx prisma *)",
+      "Bash(curl -s \"http://localhost:3000/api/v1/postal-codes?q=almagro\")"
     ]
   }
 }

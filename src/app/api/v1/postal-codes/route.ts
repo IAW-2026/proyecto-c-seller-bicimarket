@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
-  const shippingUrl = process.env.SHIPPING_API_URL?.replace(/\/$/, "");
+  const shippingUrl = process.env.SHIPPING_API_URL?.trim().replace(/\/$/, "");
   if (!shippingUrl) {
     return NextResponse.json({ data: [] });
   }
