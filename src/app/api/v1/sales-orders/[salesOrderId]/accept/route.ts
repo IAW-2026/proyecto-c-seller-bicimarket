@@ -46,10 +46,10 @@ export async function POST(
 
 async function notifyBuyerAccepted(orderId: string, sellerGroupId: string) {
   const buyerUrl = process.env.BUYER_API_URL;
-  const token = process.env.BUYER_SERVICE_TOKEN;
+  const token = process.env.SELLER_TO_BUYER_SERVICE_TOKEN;
 
   if (!buyerUrl || !token) {
-    console.error("[inter-app] BUYER_API_URL or BUYER_SERVICE_TOKEN not set — skipping accept notification");
+    console.error("[inter-app] BUYER_API_URL or SELLER_TO_BUYER_SERVICE_TOKEN not set — skipping accept notification");
     return;
   }
 
