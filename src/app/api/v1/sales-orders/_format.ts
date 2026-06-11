@@ -11,6 +11,7 @@ export function formatSalesOrder(order: SalesOrder & { items: SalesOrderItem[] }
     shipping_status: order.shippingStatus,
     payment_status: order.paymentStatus,
     shipment_id: order.shipmentId,
+    shipping_quote_id: order.shippingQuoteId,
     items_subtotal_cents: order.itemsSubtotalCents,
     shipping_cost_cents: order.shippingCostCents,
     total_cents: order.totalCents,

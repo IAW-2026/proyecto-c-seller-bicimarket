@@ -99,6 +99,51 @@ type Package = {
   description: string;
 };
 
+async function fetchQuote(
+  salesOrderId: string,
+  sellerProfileId: string,
+  snapshot: Record<string, unknown>,
+  packages: Package[],
+  baseUrl: string,
+  token: string
+): Promise<string | null> {
+  const result = await interAppCall(
+    "POST",
+    `${baseUrl}/api/v1/shipping-quotes`,
+    token,
+    {
+      pickups: [{ seller_profile_id: sellerProfileId, packages }],
+      to: {
+        city: snapshot.city,
+        province: snapshot.province,
+        postal_code: snapshot.postal_code,
+        country: snapshot.country ?? "AR",
+      },
+      service_level: "standard",
+    },
+    { "Idempotency-Key": `quote-${salesOrderId}` }
+  );
+
+  if (!result.ok) {
+    console.error(`[inter-app] Failed to fetch quote for ${salesOrderId}`, result.data);
+    return null;
+  }
+
+  const data = result.data as { quotes?: Array<{ id: string; seller_profile_id: string }> };
+  const quote = data.quotes?.find((q) => q.seller_profile_id === sellerProfileId);
+  if (!quote) {
+    console.error(`[inter-app] No quote for seller ${sellerProfileId}`, data);
+    return null;
+  }
+
+  await prisma.salesOrder.update({
+    where: { id: salesOrderId },
+    data: { shippingQuoteId: quote.id },
+  });
+
+  return quote.id;
+}
+
 async function notifyShipping(salesOrderId: string, order: OrderWithItems, sellerProfileId: string) {
   const shippingUrl = process.env.SHIPPING_API_URL;
   const token = process.env.SHIPPING_SERVICE_TOKEN;
@@ -118,21 +163,30 @@ async function notifyShipping(salesOrderId: string, order: OrderWithItems, selle
     description: item.productNameSnapshot,
   }));
 
+  const snapshot = order.shippingAddressSnapshot as Record<string, unknown>;
+  console.log(`[inter-app] shipping_address_snapshot to send:`, JSON.stringify(snapshot));
+
+  // Resolve quote ID: use stored one or fetch a new quote if Payments didn't send it.
+  let quoteId = order.shippingQuoteId;
+  if (!quoteId) {
+    quoteId = await fetchQuote(salesOrderId, sellerProfileId, snapshot, packages, baseUrl, token);
+    if (!quoteId) {
+      console.error(`[inter-app] Cannot create shipment: failed to get quote for ${salesOrderId}`);
+      return;
+    }
+  }
+
   const shipmentBody: Record<string, unknown> = {
+    service_level: "standard",
+    shipping_quote_id: quoteId,
     order_id: order.orderId,
     order_seller_group_id: order.orderSellerGroupId,
     sales_order_id: salesOrderId,
     seller_profile_id: sellerProfileId,
     buyer_profile_id: order.buyerProfileId,
-    shipping_address_snapshot: order.shippingAddressSnapshot,
+    shipping_address_snapshot: snapshot,
     packages,
   };
-
-  if (order.shippingQuoteId) {
-    shipmentBody.shipping_quote_id = order.shippingQuoteId;
-  } else {
-    shipmentBody.service_level = "standard";
-  }
 
   const result = await interAppCall(
     "POST",
@@ -142,16 +196,24 @@ async function notifyShipping(salesOrderId: string, order: OrderWithItems, selle
     { "Idempotency-Key": `shipment-${salesOrderId}` }
   );
 
+  console.log(`[inter-app] POST /shipments status: ${result.status}`, JSON.stringify(result.data));
+
   if (!result.ok) {
     console.error(`[inter-app] Failed to create shipment for sales_order ${salesOrderId}`, result.data);
     return;
   }
 
-  const shipment = result.data as Record<string, unknown>;
-  if (shipment?.id) {
-    await prisma.salesOrder.update({
-      where: { id: salesOrderId },
-      data: { shipmentId: String(shipment.id) },
-    });
+  if (result.status === 201) {
+    const raw = result.data as Record<string, unknown>;
+    const shipmentId = String(raw?.id ?? "");
+    if (shipmentId) {
+      await prisma.salesOrder.update({
+        where: { id: salesOrderId },
+        data: { shipmentId },
+      });
+      console.log(`[inter-app] shipment_id saved: ${shipmentId} for sales_order ${salesOrderId}`);
+    } else {
+      console.error(`[inter-app] 201 but no id in response`, result.data);
+    }
   }
 }

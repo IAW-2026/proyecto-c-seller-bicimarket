@@ -83,6 +83,14 @@ export async function POST(request: NextRequest) {
     return Errors.badRequest("Missing required fields");
   }
 
+  const addr = shipping_address_snapshot as Record<string, unknown>;
+  if (!addr.street || !addr.city || !addr.province || !addr.postal_code || !addr.country) {
+    return Errors.badRequest(
+      "shipping_address_snapshot must include street, city, province, postal_code and country",
+      { received: addr }
+    );
+  }
+
   const itemsArr = items as Array<{ product_id: string; product_name_snapshot: string; unit_price_cents: number; quantity: number }>;
   if (!itemsArr.length) return Errors.badRequest("items must not be empty");
 
