@@ -13,7 +13,7 @@
 | Shipping App | Enrique Seitz      | https://github.com/Enry6tz/proyecto-c-shipping-enriqueseitz         |
 | Payments App | Rocco Paoloni      | https://github.com/roccopaoloni/proyecto-c-payments-roccopaoloni    |
 
-> Todas las apps comparten **una única instancia de Clerk**. Ver `05-usuarios.md`.
+> Todas las apps comparten el mismo proyecto de Clerk (el del Buyer App). Las claves `CLERK_PUBLISHABLE_KEY` y `CLERK_SECRET_KEY` son idénticas en los cuatro repos.
 
 ---
 
@@ -25,14 +25,14 @@ Toda app del sistema cumple estas reglas. **Si alguna no las cumple, el sistema 
 
 1. **Versionado**: todos los endpoints viven bajo `/api/v1/...`.
 2. **Autenticación**:
-   - `Authorization: Bearer <JWT>` para llamadas hechas por la UI propia, validadas contra el Clerk compartido del sistema.
+   - `Authorization: Bearer <JWT>` para llamadas hechas por la UI propia, validadas contra el Clerk compartido.
    - `X-Service-Token: <secret>` para llamadas server-to-server entre apps. Cada par origen→destino tiene su propio secret rotable.
 3. **Formato de error**: `{ "error": { "code": "...", "message": "...", "details": {} } }` con HTTP status apropiado. Códigos en `SCREAMING_SNAKE_CASE`.
-4. **Paginación**: GET de listado devuelve `{ "data": [...], "pagination": { "total": N, "page": 1, "limit": 50, "has_more": true } }`. Default `limit=50`, máximo `limit=100`. (La Seller App usa 50 como default; otras apps pueden diferir en su implementación.)
+4. **Paginación**: GET de listado devuelve `{ "data": [...], "pagination": { "total": N, "page": 1, "limit": 20, "has_more": true } }`. Default `limit=20`, máximo `limit=100`.
 5. **Idempotencia**: todo `POST` que crea recursos acepta header `Idempotency-Key`. Si llega un retry con la misma key, devuelve la misma response sin duplicar.
 6. **Snapshots de datos cruzados**: cuando una app guarda datos cuya fuente de verdad está en otra (precio, nombre, dirección), guarda **snapshot al momento de la transacción**. Nunca consulta "en vivo" para mostrar histórico.
 7. **Notificaciones inter-apps**: son llamadas REST normales (`POST` o `PATCH`). Si fallan con 5xx o timeout, el emisor reintenta hasta 3 veces con backoff lineal (1s, 3s, 9s). No hay cola persistente: si tras los 3 intentos sigue fallando, se loguea el error y se reporta. Para el alcance académico del proyecto esto alcanza; en producción real reemplazaríamos por una cola.
-8. **Logs y trazabilidad**: cada request inter-app lleva `X-Request-Id: <uuid>`. La Seller App genera un UUID nuevo por cada llamada saliente en lugar de propagar el ID entrante; la correlación de logs entre apps se hace buscando por `sales_order_id` u otros IDs de negocio.
+8. **Logs y trazabilidad**: cada request inter-app lleva `X-Request-Id: <uuid>` que se propaga en cadena.
 9. **Multi-vendedor**: una orden de compra puede contener productos de varios vendedores. Cada app maneja la descomposición a su nivel:
    - Buyer App: `order` → `order_seller_groups` (1 por seller).
    - Seller App: una `sales_order` por seller (independientes).
@@ -130,6 +130,11 @@ La Seller App **se compromete a**:
 | Payments App | `PATCH /api/v1/sales-orders/{id}/payment-status`  | Marca settled / refunded.             |
 | Shipping App | `PATCH /api/v1/sales-orders/{id}/shipping-status` | Actualiza estado de envío.            |
 
+### 4.6 Notas de implementación (Seller App)
+
+- **Paginación**: la Seller App implementa `limit=50` como default (en lugar del `limit=20` global). Máximo `limit=100`.
+- **Trazabilidad (`X-Request-Id`)**: la Seller App genera un UUID nuevo por cada llamada saliente en lugar de propagar el ID entrante. La correlación entre apps se hace por `sales_order_id` u otros IDs de negocio.
+
 ---
 
 ## 5. Shipping App
@@ -139,11 +144,13 @@ La Seller App **se compromete a**:
 - `logistics_operators` — operadores propios o tercerizados.
 - `shipping_rates` — tarifario por peso/zona.
 - `shipping_quotes` — cotizaciones emitidas con TTL de 60 minutos.
+- `shipment_groups` — agrupación de envíos por pedido (1 por `order_id`), dueño del tracking GLOBAL (`BMK-…`). Ver ADR-006 en `04-modelo-de-datos.md §3.1`.
 - `shipments` — **fuente de verdad de `shipment_id`**, peso total, costo final, status.
 - `packages` — bultos del envío con `weight_grams`, `length_cm`, `width_cm`, `height_cm`, `label_url`.
 - `tracking_events` — historial de eventos.
-- `delivery_assignments` — asignación operador↔envío.
+- `delivery_assignments` — asignación operador↔envío (a nivel grupo para ADR-006).
 - `delivery_proofs` — fotos, firmas, notas en entrega.
+- `shipment_status_history` — auditoría de cambios de status.
 
 ### 5.2 Compromisos públicos
 
@@ -161,21 +168,24 @@ La Shipping App **se compromete a**:
 - **No procesa cobros del envío**. Reporta el `cost`; el cobro lo agrega Buyer App al total y lo cobra Payments.
 - **No conoce el monto de la orden**.
 
-### 5.4 Lo que consume
-
-Shipping App es mayormente reactiva. Solo consume:
+### 5.4 Lo que consume (llamadas salientes)
 
 | Consume de | Para qué                                          | Endpoint                                         |
 | ---------- | ------------------------------------------------- | ------------------------------------------------ |
 | Seller App | Validar `seller_profile_id` y dirección de retiro | `GET /api/v1/seller-profile/{id}/pickup-address` |
+| Buyer App  | Notificar cambio de estado de envío               | `PATCH /api/v1/orders/{id}/seller-groups/{g}/shipping` |
+| Seller App | Notificar cambio de estado de envío               | `PATCH /api/v1/sales-orders/{id}/shipping-status` |
+| Payments   | Gatillar liquidación al `delivered`               | `POST /api/v1/internal/shipment-delivered` |
 
 ### 5.5 Lo que recibe (REST entrante de otras apps)
 
-| De         | Endpoint                          | Acción      |
-| ---------- | --------------------------------- | ----------- |
-| Seller App | `POST /api/v1/shipments`          | Crea envío. |
-| Buyer App  | `POST /api/v1/shipping-quotes`    | Cotiza.     |
-| Buyer App  | `GET /api/v1/shipments?orderId=X` | Consulta.   |
+| De         | Endpoint                                        | Acción                           |
+| ---------- | ----------------------------------------------- | -------------------------------- |
+| Buyer App  | `POST /api/v1/shipping-quotes`                  | Cotiza.                          |
+| Buyer App  | `GET /api/v1/shipments?orderId=X`               | Consulta envíos de una orden.    |
+| Buyer App  | `GET /api/v1/shipments/{id}/tracking-events`    | Tracking público.                |
+| Seller App | `POST /api/v1/shipments`                        | Crea envío.                      |
+| Seller App | `POST /api/v1/shipments/{id}/packages`          | Agrega paquete a un envío.       |
 
 ---
 
@@ -195,12 +205,12 @@ Shipping App es mayormente reactiva. Solo consume:
 
 La Payments App **se compromete a**:
 
-- Crear pagos en Mercado Pago con un `external_reference = order_id` para trazabilidad.
-- Devolver `checkout_url` y `payment_id` a Buyer App en el `POST /payments`.
+- Crear pagos en Mercado Pago con un `external_reference = payment.id` para trazabilidad.
+- Devolver `checkout_url`, `payment_id`, `preference_id` y `public_key` a Buyer App en el `POST /payments`.
 - Recibir el webhook de Mercado Pago (único webhook del sistema), validar la firma de MP y actualizar estado.
 - Notificar a Buyer (cambio de pago) y a Seller (creación de sub-orden, cambio de liquidación) con `POST`/`PATCH` REST sobre HTTP.
 - Calcular y registrar settlements por vendedor con `gross`, `fee` y `net`.
-- Disparar transferencias (`POST /v1/transfers`) al vendedor cuando Shipping reporta `delivered`.
+- Disparar transferencias (`POST /v1/transfers`) al vendedor cuando Shipping reporta `delivered` (no implementado — settlement queda `pending` para acción manual admin).
 - Manejar reembolsos parciales y totales.
 
 ### 6.3 Compromisos NO asumidos
@@ -214,7 +224,7 @@ La Payments App **se compromete a**:
 
 | Consume de   | Para qué                                                   | Endpoint                                                                                             |
 | ------------ | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Mercado Pago | Crear pagos, transferir, reembolsar                        | `POST /v1/payments`, `POST /v1/payments/{id}/refunds`, `POST /v1/transfers`, `GET /v1/payments/{id}` |
+| Mercado Pago | Crear preferencias, consultar pagos, reembolsar            | `POST /checkout/preferences`, `GET /v1/payments/{id}`, `POST /v1/payments/{id}/refunds`              |
 | Buyer App    | Validar que la orden existe y obtener `seller_profile_id`s | `GET /api/v1/orders/{id}` (con `X-Service-Token`)                                                    |
 
 ### 6.5 Lo que recibe (REST entrante)
@@ -231,7 +241,7 @@ La Payments App **se compromete a**:
 
 | Tipo                                            | Cuándo                                                     | Headers obligatorios                                | Auth                                        | Retry                                                |
 | ----------------------------------------------- | ---------------------------------------------------------- | --------------------------------------------------- | ------------------------------------------- | ---------------------------------------------------- |
-| **REST usuario → app propia**                   | UI llama a su backend                                      | `Authorization: Bearer <JWT>`                       | JWT validado contra Clerk de la misma app   | No (lo maneja el cliente)                            |
+| **REST usuario → app propia**                   | UI llama a su backend                                      | `Authorization: Bearer <JWT>`                       | JWT validado contra el Clerk compartido     | No (lo maneja el cliente)                            |
 | **REST app → app** (consultas Y notificaciones) | Cualquier comunicación interna entre apps                  | `X-Service-Token: <secret>`, `X-Request-Id: <uuid>` | Secret compartido del par origen→destino    | 3 reintentos con timeout 5s, backoff lineal 1s/3s/9s |
 | **Webhook MP → Payments**                       | Cambio de pago en Mercado Pago (único webhook del sistema) | Firma propia de MP (`x-signature`)                  | Validar contra `MERCADOPAGO_WEBHOOK_SECRET` | Lo maneja Mercado Pago                               |
 
@@ -265,12 +275,53 @@ Todas son llamadas REST con `X-Service-Token`, salvo la última que es el webhoo
 
 ---
 
-## Anexo — Cambios respecto de `Docs Vieja/02-responsabilidades_doc_vieja.md`
+## 9. Apéndice: Cambios consolidados
 
-| Cambio | Qué era antes | Qué es ahora | Por qué cambió |
-|--------|--------------|--------------|----------------|
-| **Tabla §1: columna "Clerk propio"** | Cada app listada con su Clerk propio (`buyer.bicimarket`, `seller.bicimarket`, `shipping.bicimarket`, `payments.bicimarket`) | Sin columna "Clerk propio"; nota que todas las apps comparten un único Clerk | La arquitectura real usa un único Clerk. Las columnas individuales generaban la ilusión de que cada app tenía su propia instancia. |
-| **Regla 2: validación JWT** | "validadas contra el Clerk de **esa misma app**" | "validadas contra el Clerk compartido del sistema" | Con un único Clerk, todas las apps validan el mismo JWT. No existe "el Clerk de esa app" como instancia separada. |
-| **Regla 4: paginación por defecto** | Default `limit=20`, máximo `limit=100` | Default `limit=50`, máximo `limit=100`; aclaración que la Seller App usa 50 en su implementación | La implementación real de la Seller App usa 50. Se actualizó la documentación para reflejar el estado real del código. |
-| **Regla 8: X-Request-Id** | "cada request inter-app lleva `X-Request-Id: <uuid>` que se propaga en cadena" | La Seller App genera un UUID nuevo por cada llamada saliente en lugar de propagar el ID entrante; la correlación se hace por `sales_order_id` u otros IDs de negocio | Decisión de implementación: propagar el ID en cadena requeriría pasarlo entre contextos del servidor. Se optó por correlación vía IDs de negocio. |
-| **§3.1: buyer_profiles y Clerk** | "vinculado a `clerk_user_id` del Clerk-Buyer" | "vinculado a `clerk_user_id` del Clerk compartido" | No existe "Clerk-Buyer" como instancia separada. |
+### A. Payments App (§6) — cambios en compromisos
+
+| Compromiso anterior | Actual | Por qué |
+|---------------------|--------|---------|
+| `external_reference = order_id` | `external_reference = payment.id` | Usar `payment.id` permite reconocer el pago local desde el webhook de MP aunque la orden cambie. |
+| `POST /v1/payments` (endpoint MP para crear pago) | Solo `POST /checkout/preferences` (SDK) | Checkout Pro vía preferencias es más simple. |
+| `POST /v1/transfers` (transferir a seller) | **No implementado.** Settlement queda `pending`, admin marca como pagado | Las transfers MP no entran en el alcance académico. |
+| `GET /v1/transfers/{id}` | **No implementado.** | No hay transfers. |
+
+### B. Payments App (§6) — nuevos compromisos
+
+| Compromiso actual | Anterior | Por qué |
+|-------------------|----------|---------|
+| Devolver `preference_id` y `public_key` en POST /payments | No existía | Wallet Brick de MP necesita `preference_id` y `public_key` para renderizarse. |
+| `items_summary` con `items[]` y `order_seller_group_id` | Solo `{ seller_profile_id, subtotal_cents, shipping_cost_cents }` | Items anidados alimentan la preferencia de MP con productos reales. `order_seller_group_id` traza el settlement hasta el grupo de la orden. |
+| `return_urls` opcional | No documentado | Wallet Brick no requiere `back_urls`; MP autogenera defaults. |
+| Admin fallback en refund | No existía | El panel admin necesita reembolsar sin depender de Seller App (soporte). |
+| CRUD completo de refunds, payouts, settlements admin | Solo `POST /payouts` y `POST /settlements` interno | Dashboard admin necesita gestionar reembolsos y transferencias manualmente. |
+
+### C. Tabla §1 — eliminación de la columna "Clerk propio"
+
+- **Anterior**: la tabla de distribución incluía una columna "Clerk propio" donde cada app listaba su propio Clerk (`buyer.bicimarket`, `seller.bicimarket`, etc.).
+- **Actual**: esa columna se eliminó porque todas las apps ahora comparten un único proyecto de Clerk.
+
+### D. §2 Regla 2 — Autenticación
+
+- **Anterior**: "validadas contra el Clerk de **esa misma app**". Cada app validaba JWTs de su propio issuer y audience.
+- **Actual**: "validadas contra el Clerk compartido". Todas las apps aceptan el mismo JWT porque comparten el mismo proyecto de Clerk.
+
+### E. §7 Tabla de mecanismos de comunicación
+
+- **Anterior**: columna Auth decía "JWT validado contra Clerk de la misma app".
+- **Actual**: columna Auth dice "JWT validado contra el Clerk compartido".
+
+### F. Payments App (§6.4) — endpoints MP consumidos
+
+| Endpoint MP | Anterior | Actual |
+|-------------|----------|--------|
+| `POST /checkout/preferences` | Sí | Sí |
+| `POST /v1/payments` | Sí | **Eliminado** |
+| `GET /v1/payments/{id}` | Sí | Sí |
+| `POST /v1/payments/{id}/refunds` | Sí | Sí |
+| `POST /v1/transfers` | Sí | **Eliminado** |
+| `GET /v1/transfers/{id}` | Sí | **Eliminado** |
+
+### G. Sin cambios estructurales
+
+- §1-5, §7-8: las reglas transversales, compromisos por app y tabla maestra de comunicación son idénticos en esencia. El único cambio de fondo es la arquitectura de Clerk y los ajustes en Payments App.

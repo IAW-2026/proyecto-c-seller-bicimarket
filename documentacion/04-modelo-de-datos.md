@@ -10,13 +10,13 @@
 
 - **Motor**: PostgreSQL 16+, una instancia por app (ideal: bases separadas en clusters separados; mínimo aceptable: bases separadas en el mismo cluster con usuarios distintos).
 - **ORM**: Prisma.
-- **IDs**: `String @id @default(cuid())` con prefijo de recurso (`ord_`, `prd_`, etc.) generado en aplicación.
+- **IDs**: `String @id @default(cuid())` en schema, sobrescrito via extensión de Prisma (`$extends`) que genera IDs con prefijo de recurso (`pay_`, `set_`, `pyt_`, `ref_`, `rec_`, etc.) en cada `create`. Ver `src/lib/id-generator.ts` y `src/lib/prisma.ts`.
 - **Timestamps**: `created_at @default(now())` y `updated_at @updatedAt` en toda tabla.
 - **Soft deletes**: `deleted_at DateTime?` en entidades con historial relevante (productos, perfiles).
 - **Snapshots**: cuando un campo viene de otra app (precio, dirección, nombre del producto), se guarda con sufijo `_snapshot` y **nunca se actualiza** una vez guardado.
 - **Referencias cruzadas**: los IDs de otras apps se guardan como **string opaco**, sin foreign key. La integridad la mantiene el ciclo de vida del negocio.
 - **Auditoría**: cualquier cambio de estado relevante (`order.status`, `shipment.status`, `payment.status`, `settlement.status`) deja registro en una tabla `*_status_history` (ver §6).
-- **Identidad**: todas las apps comparten **un único Clerk**. `clerk_user_id` en cada perfil refiere al mismo usuario del Clerk compartido. Un humano puede tener perfiles en múltiples apps usando el mismo `clerk_user_id`; las apps no mantienen tablas de mapeo porque no hace falta.
+- **Identidad**: todas las apps comparten el mismo proyecto de Clerk. El `clerk_user_id` es el mismo para un usuario dado sin importar en qué app lo lea. Un humano puede tener roles en múltiples apps (comprador y vendedor, por ejemplo) usando la misma cuenta de Clerk; el rol se determina por `publicMetadata`.
 
 ---
 
@@ -30,7 +30,7 @@ Fuente de verdad de: `order_id`, carrito, direcciones del comprador, perfil de c
 | Campo | Tipo | Notas |
 |---|---|---|
 | `id` | string PK | `byp_…` |
-| `clerk_user_id` | string unique | viene del Clerk compartido |
+| `clerk_user_id` | string unique | viene del Clerk-Buyer |
 | `full_name` | string | snapshot del nombre, sincronizado desde Clerk en el primer login |
 | `email` | string unique | idem |
 | `phone` | string? | |
@@ -52,7 +52,7 @@ Fuente de verdad de: `order_id`, carrito, direcciones del comprador, perfil de c
 |---|---|---|
 | `id` | string PK | `crt_…` |
 | `buyer_profile_id` | string FK unique | un cart activo por buyer |
-| `status` | enum `active` \| `converted` \| `abandoned` | |
+| `status` | enum `active` \| `converted` | |
 | `created_at` / `updated_at` | timestamps | |
 
 #### `cart_items`
@@ -161,7 +161,7 @@ Fuente de verdad de: catálogo (`product`, precio, peso), perfil de vendedor, su
 | Campo | Tipo | Notas |
 |---|---|---|
 | `id` | string PK | `slp_…` |
-| `clerk_user_id` | string unique | Clerk compartido |
+| `clerk_user_id` | string unique | Clerk-Seller |
 | `legal_name` | string | |
 | `display_name` | string | |
 | `tax_id` | string | CUIT |
@@ -261,7 +261,7 @@ Fuente de verdad de: `shipment_id`, paquetes, eventos de tracking, operadores lo
 | Campo | Tipo | Notas |
 |---|---|---|
 | `id` | string PK | `lop_…` |
-| `clerk_user_id` | string unique | Clerk compartido |
+| `clerk_user_id` | string unique | Clerk-Shipping |
 | `full_name` | string | |
 | `phone` | string | |
 | `email` | string | |
@@ -298,8 +298,27 @@ Fuente de verdad de: `shipment_id`, paquetes, eventos de tracking, operadores lo
 | `cost_cents` | int | |
 | `weight_grams_total` | int | |
 | `packages_snapshot` | json | array de paquetes con peso/dimensiones |
-| `expires_at` | timestamp | now + 60 min |
+| `idempotency_key` | string? unique | |
+| `expires_at` | timestamp | now + 60 min (calculado en aplicación) |
 | `created_at` | timestamp | |
+
+#### `shipment_groups` (ADR-006 — agrupación del pedido completo)
+Una orden del comprador con N vendedores genera N `shipments` (uno por seller). El `shipment_group` (1 por `order_id`) los agrupa y es dueño del tracking GLOBAL del pedido — el único que ve el comprador. Siempre existe un grupo, tenga 1 o N vendedores.
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| `id` | string PK | `grp_…` |
+| `order_id` | string unique | ref opaca a Buyer; 1 grupo por orden |
+| `buyer_profile_id` | string | |
+| `tracking_number` | string unique | tracking GLOBAL del pedido (`"BMK-" + random10`). El único que ve el comprador. |
+| `status` | enum (ver §6.4) | rollup persistido de los N shipments (se recomputa en cada cambio) |
+| `service_level` | enum | |
+| `shipping_address_snapshot` | json | |
+| `origins_count` | int | cantidad de vendedores del pedido |
+| `assigned_operator_clerk_user_id` | string? | operador dueño del pedido entero. null = disponible |
+| `created_at` / `updated_at` | timestamps | |
+
+Índices: `(buyer_profile_id)`, `(status)`. `order_id` y `tracking_number` son unique.
 
 #### `shipments`
 | Campo | Tipo | Notas |
@@ -310,10 +329,11 @@ Fuente de verdad de: `shipment_id`, paquetes, eventos de tracking, operadores lo
 | `sales_order_id` | string | ref opaca a Seller |
 | `seller_profile_id` | string | |
 | `buyer_profile_id` | string | |
+| `shipment_group_id` | string FK → shipment_groups | ADR-006: pedido al que pertenece. onDelete cascade. |
 | `shipping_quote_id` | string FK? → shipping_quotes | |
 | `carrier` | string | |
 | `service_level` | enum | |
-| `tracking_number` | string unique | |
+| `tracking_number` | string unique | tracking INDIVIDUAL del pickup (`"TRK-AR-" + random8`). Lo ve solo el vendedor de ese envío. |
 | `label_url` | string | |
 | `status` | enum (ver §6.4) | |
 | `weight_grams_total` | int | |
@@ -321,10 +341,11 @@ Fuente de verdad de: `shipment_id`, paquetes, eventos de tracking, operadores lo
 | `currency` | string | |
 | `shipping_address_snapshot` | json | |
 | `pickup_address_snapshot` | json | |
+| `idempotency_key` | string? unique | |
 | `shipped_at` / `delivered_at` | timestamps? | |
 | `created_at` / `updated_at` | timestamps | |
 
-Índices: `(order_id)`, `(sales_order_id)`, `(tracking_number)`, `(status)`.
+Índices: `(order_id)`, `(order_seller_group_id)`, `(sales_order_id)`, `(seller_profile_id)`, `(buyer_profile_id)`, `(shipment_group_id)`, `(tracking_number)`, `(status)`, `(created_at)`.
 
 #### `packages`
 | Campo | Tipo | Notas |
@@ -351,7 +372,8 @@ Fuente de verdad de: `shipment_id`, paquetes, eventos de tracking, operadores lo
 | Campo | Tipo | Notas |
 |---|---|---|
 | `id` | string PK | `dla_…` |
-| `shipment_id` | string FK | |
+| `shipment_group_id` | string? FK → shipment_groups | nivel real de asignación (el pedido completo) |
+| `shipment_id` | string? FK | nullable/legacy (asignaciones históricas por-envío) |
 | `operator_clerk_user_id` | string | |
 | `status` | enum `assigned` \| `accepted` \| `picked_up` \| `delivered` \| `reassigned` \| `cancelled` | |
 | `assigned_at` | timestamp | |
@@ -362,19 +384,32 @@ Fuente de verdad de: `shipment_id`, paquetes, eventos de tracking, operadores lo
 |---|---|---|
 | `id` | string PK | `prf_…` |
 | `shipment_id` | string FK | |
-| `proof_photo_url` | string | |
+| `proof_photo_url` | string | URL o `data:image/...;base64,…` |
 | `signature_image_url` | string? | |
 | `note` | string? | |
 | `delivered_at` | timestamp | |
 
+#### `shipment_status_history` (auditoría)
+| Campo | Tipo | Notas |
+|---|---|---|
+| `id` | string PK | `ssh_…` |
+| `shipment_id` | string FK | |
+| `from_status` | string | |
+| `to_status` | string | |
+| `source` | string | `logistics` \| `admin` \| `system` |
+| `payload` | json? | |
+| `occurred_at` | timestamp | |
+
 ### 3.2 Diagrama
 ```mermaid
 erDiagram
+    shipment_groups ||--o{ shipments : "groups (1 per order)"
+    shipment_groups ||--o{ delivery_assignments : "assigned (whole order)"
     shipping_quotes ||--o{ shipments : "may convert to"
     shipments ||--o{ packages : has
     shipments ||--o{ tracking_events : tracked
-    shipments ||--o{ delivery_assignments : assigned
     shipments ||--|| delivery_proofs : "may have"
+    shipments ||--o{ shipment_status_history : audited
     logistics_operators ||--o{ delivery_assignments : performs
 ```
 
@@ -391,7 +426,7 @@ Fuente de verdad de: `payment_id`, intentos, comprobantes, settlements (uno por 
 |---|---|---|
 | `id` | string PK | `pay_…` |
 | `order_id` | string | ref opaca |
-| `buyer_clerk_user_id` | string | `clerk_user_id` del comprador, lo manda Buyer App |
+| `buyer_clerk_user_id` | string | de Clerk-Buyer (lo manda Buyer App) |
 | `buyer_profile_id` | string | |
 | `amount_cents` | int | total cobrado al comprador |
 | `currency` | string | |
@@ -399,7 +434,10 @@ Fuente de verdad de: `payment_id`, intentos, comprobantes, settlements (uno por 
 | `card_last4` | string? | |
 | `status` | enum (ver §6.5) | |
 | `gateway_reference` | string | `mp_payment_id` o `mp_preference_id` |
-| `idempotency_key` | string unique | |
+| `items_summary` | json? | desglose por vendedor: `[{ seller_profile_id, subtotal_cents, shipping_cost_cents, order_seller_group_id, items[] }]`, usado al llegar `shipment-delivered` para calcular settlements |
+| `idempotency_key` | string unique | previene duplicados permanentemente |
+| `checkout_url` | string? | URL de MP (`init_point` / `sandbox_init_point`) |
+| `preference_id` | string? | ID de preferencia de MP |
 | `approved_at` / `rejected_at` / `cancelled_at` | timestamps? | |
 | `created_at` / `updated_at` | timestamps | |
 
@@ -425,6 +463,7 @@ Fuente de verdad de: `payment_id`, intentos, comprobantes, settlements (uno por 
 | `receipt_number` | string | |
 | `receipt_url` | string | PDF |
 | `amount_cents` | int | |
+| `idempotency_key` | string unique? | |
 | `issued_at` | timestamp | |
 
 #### `settlements`
@@ -454,6 +493,7 @@ Fuente de verdad de: `payment_id`, intentos, comprobantes, settlements (uno por 
 | `status` | enum `pending` \| `in_progress` \| `completed` \| `failed` \| `manual_review` | |
 | `attempts` | int | |
 | `last_error` | string? | |
+| `idempotency_key` | string unique? | |
 | `started_at` / `completed_at` | timestamps? | |
 
 #### `refunds`
@@ -466,6 +506,7 @@ Fuente de verdad de: `payment_id`, intentos, comprobantes, settlements (uno por 
 | `reason` | enum `seller_rejected` \| `buyer_cancelled` \| `not_delivered` \| `manual` | |
 | `status` | enum `pending` \| `approved` \| `failed` | |
 | `gateway_reference` | string? | |
+| `idempotency_key` | string unique? | |
 | `created_at` | timestamp | |
 
 #### `mp_webhook_events` (solo entrante de Mercado Pago)
@@ -556,10 +597,11 @@ pending ─► paid (terminal)
 
 | Dato | Apps que lo tienen | Fuente de verdad | Estrategia |
 |---|---|---|---|
-| Identidad de usuario | Clerk compartido por todas las apps | El único Clerk del sistema | Un mismo `clerk_user_id` puede tener perfiles en múltiples apps. No hay mapeo necesario porque es el mismo usuario. |
-| Datos de perfil básicos (nombre, email) | Clerk de cada app + perfil local | Clerk de esa app | El perfil local se crea en el primer login (provisioning perezoso): el backend lee los claims del JWT y guarda el snapshot. Las actualizaciones siguen con cada login (refresh on demand). |
+| Identidad de usuario | Todas las apps comparten el mismo Clerk | El Clerk compartido | Un usuario tiene una sola cuenta de Clerk. Su rol en cada app se determina por `publicMetadata`. |
+| Datos de perfil básicos (nombre, email) | Clerk compartido + perfil local en cada DB | Clerk compartido | El perfil local se crea en el primer login en cada app (provisioning perezoso): el backend lee los claims del JWT y hace upsert. |
 | `order_id` y estado visible de la orden | Buyer (verdad), Seller, Shipping, Payments | **Buyer App** | Buyer es dueña; las demás guardan ref opaca y reciben `PATCH` REST cuando hay cambios. |
-| `shipment_id` y estado de envío | Shipping (verdad), Buyer, Seller | **Shipping App** | Shipping notifica con `PATCH` REST; Buyer y Seller guardan `shipping_status` espejo. |
+| `shipment_id` y estado de envío | Shipping (verdad), Buyer, Seller | **Shipping App** | Shipping notifica con `PATCH` REST; Buyer y Seller guardan `shipping_status` espejo. ADR-006: a Buyer se le manda el tracking GLOBAL del pedido (`BMK-…`); a Seller, el `shipment_id` de su envío. |
+| Tracking del pedido (global) vs del envío (individual) | Shipping (verdad) | **Shipping App** | `shipment_groups.tracking_number` (`BMK-…`) lo ve el comprador; `shipments.tracking_number` (`TRK-AR-…`) lo ve cada vendedor para su propio envío. |
 | `payment_id` y estado de pago | Payments (verdad), Buyer, Seller | **Payments App** | Payments notifica con `PATCH` REST. |
 | `product_id`, precio, peso, dimensiones | Seller (verdad), Buyer (snapshots) | **Seller App** | Buyer guarda snapshots al agregar al carrito. `availability` solo confirma `status=active` (sin stock: el proyecto trabaja con stock ilimitado). |
 | Dirección de envío | Buyer (verdad), Shipping (snapshot), Seller (snapshot) | **Buyer App** | Snapshot al crear la orden; nunca se actualiza. |
@@ -567,14 +609,69 @@ pending ─► paid (terminal)
 
 ---
 
-## Anexo — Cambios respecto de `Docs Vieja/04-modelo-de-datos_doc_vieja.md`
+## Apéndice: Cambios consolidados
 
-| Cambio | Qué era antes | Qué es ahora | Por qué cambió |
-|--------|--------------|--------------|----------------|
-| **Regla §0: identidad** | "cada app tiene su propio Clerk. `clerk_user_id` refiere al Clerk **de esa app**. No existe correlación entre Clerks: si un humano opera en varias apps, sus cuentas son cuentas separadas" | "todas las apps comparten **un único Clerk**. `clerk_user_id` refiere al mismo usuario del Clerk compartido. Un humano puede tener perfiles en múltiples apps usando el mismo `clerk_user_id`" | La arquitectura real usa un único Clerk. Con Clerk único, el mismo `clerk_user_id` identifica al mismo humano en todas las apps sin necesidad de correlación ni mapeo. |
-| **`buyer_profiles.clerk_user_id`** | "viene del Clerk-Buyer" | "viene del Clerk compartido" | No existe "Clerk-Buyer" como instancia separada; todos los perfiles referencian el único Clerk del sistema. |
-| **`seller_profiles.clerk_user_id`** | "Clerk-Seller" | "Clerk compartido" | Idem. |
-| **`logistics_operators.clerk_user_id`** | "Clerk-Shipping" | "Clerk compartido" | Idem. |
-| **`payments.buyer_clerk_user_id`** | "de Clerk-Buyer (lo manda Buyer App)" | "`clerk_user_id` del comprador, lo manda Buyer App" | El campo es el `clerk_user_id` estándar del único Clerk, no de un Clerk separado de Buyer. |
-| **§6 consistencia: identidad de usuario** | "Cada Clerk es una base de usuarios independiente. No hay sync ni mapeo entre Clerks" | "Un mismo `clerk_user_id` puede tener perfiles en múltiples apps. No hay mapeo necesario porque es el mismo usuario" | Con Clerk único, no hay cuentas separadas. El mismo `clerk_user_id` vincula los perfiles locales en cada app. |
-| **`products.category` enum** | Sin valor `indumentaria` | Agregado `\| indumentaria` | Categoría adicional implementada en la Seller App. |
+### A. Reglas comunes (§0) — IDs
+
+| Anterior | Actual | Por qué |
+|----------|--------|---------|
+| `String @id @default(cuid())` con prefijo generado en aplicación | `String @id @default(cuid())` sobrescrito vía extensión de Prisma (`$extends`) que llama a `generateId(model)` de `src/lib/id-generator.ts` | El middleware `$extends` en `src/lib/prisma.ts` intercepta cada `create` y reemplaza el `id` generado por `cuid()` con un ID prefijado (`pay_`, `set_`, etc.). Esto garantiza IDs legibles estilo Stripe sin depender del `@default` del schema. |
+
+### B. Regla de identidad (§0)
+
+- **Anterior**: "cada app tiene su propio Clerk. `clerk_user_id` en cada perfil refiere al Clerk **de esa app**. No existe correlación entre Clerks."
+- **Actual**: "todas las apps comparten el mismo proyecto de Clerk. El `clerk_user_id` es el mismo para un usuario dado sin importar en qué app lo lea."
+
+### C. Buyer App — `carts.status`
+
+- **Anterior**: `enum active | converted | abandoned`
+- **Actual**: `enum active | converted`
+- **Por qué**: detectar carritos abandonados requería un cron o webhook que estaba fuera del alcance. Sin mecanismo que transite a `abandoned`, el estado era dead code.
+
+### D. Seller App — `products.category`
+
+- **Anterior**: `mtb | road | urban | kids | bmx | parts | accessories`
+- **Actual**: agrega `indumentaria`.
+
+### E. Payments App — Tabla `payments`
+
+| Campo | Anterior | Actual | Por qué |
+|-------|----------|--------|---------|
+| `checkout_url` | No existía | `string?` — URL de MP (`init_point`) | Se guarda post-creación de preferencia para devolver al frontend en respuestas de idempotencia. |
+| `preference_id` | No existía | `string?` — ID de preferencia de MP | Necesario para renderizar Wallet Brick en el frontend. |
+| `items_summary` | No existía | `json?` — `[{ seller_profile_id, subtotal_cents, shipping_cost_cents, order_seller_group_id, items[] }]` | Se persiste el payload completo del request para usarlo al calcular settlements cuando llega `shipment-delivered`. |
+| `idempotency_key` | `string unique` | `string unique` | Sin cambios. |
+| `method` | `enum?` | `enum` (mismo) | Sin cambios — se llena post-aprobación desde webhook. |
+| `card_last4` | No existía | `string?` | Se llena post-aprobación desde respuesta de MP. |
+
+### F. Payments App — Nuevas tablas de auditoría
+
+| Tabla | Anterior | Actual | Por qué |
+|-------|----------|--------|---------|
+| `PaymentStatusHistory` | No existía | Modelo completo con `from_status`, `to_status`, `source`, `payload`, `occurred_at` | Auditoría de cambios de estado requerida para trazabilidad. |
+| `SettlementStatusHistory` | No existía | Idem | Idem. |
+| `RefundStatusHistory` | No existía | Idem | Idem. |
+
+### G. Payments App — Tablas modificadas
+
+#### `receipts`
+- **Nuevo**: `idempotency_key` (`string unique?`) — Idempotencia permanente.
+
+#### `refunds`
+- **Nuevo**: `idempotency_key` (`string unique?`) — Idempotencia permanente.
+
+#### `payouts`
+- **Nuevo**: `idempotency_key` (`string unique?`) — Idempotencia permanente.
+
+#### `settlements`
+- **Anterior**: Sin relación a `payouts`.
+- **Actual**: `payouts Payout[]` — un settlement puede tener múltiples intentos de payout.
+
+### H. Sin cambios
+
+- `payment_attempts` — idéntico.
+- `mp_webhook_events` — idéntico.
+- `outbound_calls_log` — idéntico.
+- Diagramas ER — idénticos.
+- Máquinas de estado (§5) — idénticas.
+- Datos duplicados (§6) — idéntico salvo la fila de identidad actualizada.

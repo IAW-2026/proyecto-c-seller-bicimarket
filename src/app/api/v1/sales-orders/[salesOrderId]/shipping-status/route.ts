@@ -28,6 +28,7 @@ export async function PATCH(
     "in_transit",
     "out_for_delivery",
     "delivered",
+    "failed_delivery",
     "returned",
   ];
   if (!validStatuses.includes(String(shipping_status))) {
