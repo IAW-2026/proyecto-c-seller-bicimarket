@@ -18,6 +18,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { PostalCodeCombobox } from "@/components/postal-code-combobox";
+import type { PostalCode } from "@/hooks/use-postal-codes";
 
 const VERIFICATION_LABEL = {
   pending_review: "Pendiente de revisión",
@@ -75,6 +77,18 @@ export function ProfileTab({ isAdmin = false }: { isAdmin?: boolean }) {
     setForm((f) => ({ ...f, pickup_address: { ...f.pickup_address, [k]: v } }));
   }
 
+  function handlePostalSelect(entry: PostalCode) {
+    setForm((f) => ({
+      ...f,
+      pickup_address: {
+        ...f.pickup_address,
+        postal_code: entry.cp,
+        city: entry.city,
+        province: entry.province,
+      },
+    }));
+  }
+
   async function handleVerify(status: "verified" | "pending_review" | "suspended") {
     if (!profile) return;
     setVerifying(true);
@@ -95,8 +109,8 @@ export function ProfileTab({ isAdmin = false }: { isAdmin?: boolean }) {
       toast.error("Completá todos los campos obligatorios");
       return;
     }
-    if (!pickup_address.street || !pickup_address.city || !pickup_address.province) {
-      toast.error("Completá la dirección de retiro");
+    if (!pickup_address.street || !pickup_address.postal_code) {
+      toast.error("Completá la dirección de retiro (calle y código postal)");
       return;
     }
     try {
@@ -247,42 +261,43 @@ export function ProfileTab({ isAdmin = false }: { isAdmin?: boolean }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label htmlFor="addr-city">Ciudad *</Label>
-              <Input
-                id="addr-city"
-                value={form.pickup_address.city}
-                onChange={(e) => setAddr("city", e.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="addr-province">Provincia *</Label>
-              <Input
-                id="addr-province"
-                value={form.pickup_address.province}
-                onChange={(e) => setAddr("province", e.target.value)}
-              />
-            </div>
+          <div className="space-y-1">
+            <Label htmlFor="addr-postal">Código postal *</Label>
+            <PostalCodeCombobox
+              value={form.pickup_address.postal_code}
+              onSelect={handlePostalSelect}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label htmlFor="addr-postal">Código postal</Label>
+              <Label htmlFor="addr-city">Ciudad</Label>
               <Input
-                id="addr-postal"
-                value={form.pickup_address.postal_code}
-                onChange={(e) => setAddr("postal_code", e.target.value)}
+                id="addr-city"
+                value={form.pickup_address.city}
+                readOnly
+                className="bg-muted"
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="addr-country">País</Label>
+              <Label htmlFor="addr-province">Provincia</Label>
               <Input
-                id="addr-country"
-                value={form.pickup_address.country}
-                onChange={(e) => setAddr("country", e.target.value)}
+                id="addr-province"
+                value={form.pickup_address.province}
+                readOnly
+                className="bg-muted"
               />
             </div>
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="addr-country">País</Label>
+            <Input
+              id="addr-country"
+              value={form.pickup_address.country}
+              onChange={(e) => setAddr("country", e.target.value)}
+              className="max-w-24"
+            />
           </div>
         </CardContent>
       </Card>
