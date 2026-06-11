@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SellersList } from "@/app/admin/_components/sellers-list";
 import { AdminProductsList } from "@/app/admin/_components/products-list";
+import { AdminOrdersList } from "@/app/admin/_components/orders-list";
 
 export default async function AdminPage() {
   const user = await currentUser();
@@ -22,6 +23,7 @@ export default async function AdminPage() {
         <TabsList className="mb-4">
           <TabsTrigger value="sellers">Vendedores</TabsTrigger>
           <TabsTrigger value="products">Productos</TabsTrigger>
+          <TabsTrigger value="orders">Órdenes</TabsTrigger>
         </TabsList>
 
         <TabsContent value="sellers">
@@ -30,6 +32,10 @@ export default async function AdminPage() {
 
         <TabsContent value="products">
           <AdminProductsList />
+        </TabsContent>
+
+        <TabsContent value="orders">
+          <AdminOrdersList />
         </TabsContent>
       </Tabs>
     </div>
