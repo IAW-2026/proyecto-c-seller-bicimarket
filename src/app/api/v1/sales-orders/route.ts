@@ -75,6 +75,8 @@ export async function POST(request: NextRequest) {
     shipping_quote_id,
   } = body as Record<string, unknown>;
 
+  console.log("[sales-orders POST] shipping_quote_id received:", shipping_quote_id ?? "NOT PRESENT");
+
   if (!order_id || !order_seller_group_id || !buyer_profile_id || !buyer_clerk_user_id ||
       !items || !items_subtotal_cents || !shipping_cost_cents || !total_cents ||
       !shipping_address_snapshot || !payment_id) {

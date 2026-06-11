@@ -48,13 +48,6 @@ export async function PATCH(
     );
   }
 
-  if (newStatus === "ready_to_ship" && !order.shippingQuoteId) {
-    return Errors.unprocessable(
-      "MISSING_SHIPPING_QUOTE",
-      "Cannot mark order as ready to ship: no shipping quote ID associated with this order"
-    );
-  }
-
   const updated = await prisma.salesOrder.update({
     where: { id: salesOrderId },
     data: {
@@ -71,7 +64,6 @@ export async function PATCH(
     include: { items: true },
   });
 
-  // When the order is ready to ship, notify Shipping App to create the shipment.
   if (newStatus === "ready_to_ship") {
     await notifyShipping(salesOrderId, order, profile!.id);
   }
@@ -99,6 +91,14 @@ type OrderWithItems = {
   }>;
 };
 
+type Package = {
+  weight_grams: number;
+  length_cm: number;
+  width_cm: number;
+  height_cm: number;
+  description: string;
+};
+
 async function notifyShipping(salesOrderId: string, order: OrderWithItems, sellerProfileId: string) {
   const shippingUrl = process.env.SHIPPING_API_URL;
   const token = process.env.SHIPPING_SERVICE_TOKEN;
@@ -108,8 +108,14 @@ async function notifyShipping(salesOrderId: string, order: OrderWithItems, selle
     return;
   }
 
-  // Build one package per line item. Weight is per-unit × quantity.
-  const packages = order.items.map((item) => ({
+  if (!order.shippingQuoteId) {
+    console.error(`[inter-app] Cannot create shipment: no shipping quote ID for ${salesOrderId}`);
+    return;
+  }
+
+  const baseUrl = shippingUrl.replace(/\/$/, "");
+
+  const packages: Package[] = order.items.map((item) => ({
     weight_grams: item.product.weightGrams * item.quantity,
     length_cm: item.product.lengthCm ?? 50,
     width_cm: item.product.widthCm ?? 50,
@@ -117,33 +123,28 @@ async function notifyShipping(salesOrderId: string, order: OrderWithItems, selle
     description: item.productNameSnapshot,
   }));
 
-  const body = {
-    shipping_quote_id: order.shippingQuoteId,
-    order_id: order.orderId,
-    order_seller_group_id: order.orderSellerGroupId,
-    sales_order_id: salesOrderId,
-    seller_profile_id: sellerProfileId,
-    buyer_profile_id: order.buyerProfileId,
-    shipping_address_snapshot: order.shippingAddressSnapshot,
-    packages,
-  };
-
-  const url = `${shippingUrl.replace(/\/$/, "")}/api/v1/shipments`;
-  const result = await interAppCall("POST", url, token, body, {
-    "Idempotency-Key": `shipment-${salesOrderId}`,
-  });
+  const result = await interAppCall(
+    "POST",
+    `${baseUrl}/api/v1/shipments`,
+    token,
+    {
+      shipping_quote_id: order.shippingQuoteId,
+      order_id: order.orderId,
+      order_seller_group_id: order.orderSellerGroupId,
+      sales_order_id: salesOrderId,
+      seller_profile_id: sellerProfileId,
+      buyer_profile_id: order.buyerProfileId,
+      shipping_address_snapshot: order.shippingAddressSnapshot,
+      packages,
+    },
+    { "Idempotency-Key": `shipment-${salesOrderId}` }
+  );
 
   if (!result.ok) {
-    // Per docs §2 rule 7: log and report — do NOT block the seller's status change.
-    console.error(
-      `[inter-app] Failed to create shipment for sales_order ${salesOrderId}`,
-      result.data
-    );
+    console.error(`[inter-app] Failed to create shipment for sales_order ${salesOrderId}`, result.data);
     return;
   }
 
-  // Store the returned shipment_id on the sales order so Shipping's PATCH
-  // /shipping-status can be correlated later.
   const shipment = result.data as Record<string, unknown>;
   if (shipment?.id) {
     await prisma.salesOrder.update({
