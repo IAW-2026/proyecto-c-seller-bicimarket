@@ -95,7 +95,7 @@ model SalesOrder {
   shippingCostCents       Int                      @map("shipping_cost_cents")
   totalCents              Int                      @map("total_cents")
   currency                String                   @default("ARS")
-  shippingAddressSnapshot Json                     @map("shipping_address_snapshot")
+  shippingAddressSnapshot Json?                    @map("shipping_address_snapshot")
   idempotencyKey          String?                  @unique @map("idempotency_key")
   items                   SalesOrderItem[]
   statusHistory           SalesOrderStatusHistory[]

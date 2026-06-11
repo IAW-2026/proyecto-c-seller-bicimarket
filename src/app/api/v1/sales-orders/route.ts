@@ -79,16 +79,8 @@ export async function POST(request: NextRequest) {
 
   if (!order_id || !order_seller_group_id || !buyer_profile_id || !buyer_clerk_user_id ||
       !items || !items_subtotal_cents || !shipping_cost_cents || !total_cents ||
-      !shipping_address_snapshot || !payment_id) {
+      !payment_id || !shipping_quote_id) {
     return Errors.badRequest("Missing required fields");
-  }
-
-  const addr = shipping_address_snapshot as Record<string, unknown>;
-  if (!addr.street || !addr.city || !addr.province || !addr.postal_code || !addr.country) {
-    return Errors.badRequest(
-      "shipping_address_snapshot must include street, city, province, postal_code and country",
-      { received: addr }
-    );
   }
 
   const itemsArr = items as Array<{ product_id: string; product_name_snapshot: string; unit_price_cents: number; quantity: number }>;
@@ -116,7 +108,7 @@ export async function POST(request: NextRequest) {
       shippingCostCents: Number(shipping_cost_cents),
       totalCents: Number(total_cents),
       currency: String(currency),
-      shippingAddressSnapshot: shipping_address_snapshot as never,
+      ...(shipping_address_snapshot != null ? { shippingAddressSnapshot: shipping_address_snapshot as never } : {}),
       items: {
         create: itemsArr.map((item) => ({
           id: newId("soi"),
