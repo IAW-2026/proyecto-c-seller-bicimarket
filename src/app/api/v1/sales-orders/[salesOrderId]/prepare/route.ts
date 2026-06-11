@@ -108,11 +108,6 @@ async function notifyShipping(salesOrderId: string, order: OrderWithItems, selle
     return;
   }
 
-  if (!order.shippingQuoteId) {
-    console.error(`[inter-app] Cannot create shipment: no shipping quote ID for ${salesOrderId}`);
-    return;
-  }
-
   const baseUrl = shippingUrl.replace(/\/$/, "");
 
   const packages: Package[] = order.items.map((item) => ({
@@ -123,20 +118,27 @@ async function notifyShipping(salesOrderId: string, order: OrderWithItems, selle
     description: item.productNameSnapshot,
   }));
 
+  const shipmentBody: Record<string, unknown> = {
+    order_id: order.orderId,
+    order_seller_group_id: order.orderSellerGroupId,
+    sales_order_id: salesOrderId,
+    seller_profile_id: sellerProfileId,
+    buyer_profile_id: order.buyerProfileId,
+    shipping_address_snapshot: order.shippingAddressSnapshot,
+    packages,
+  };
+
+  if (order.shippingQuoteId) {
+    shipmentBody.shipping_quote_id = order.shippingQuoteId;
+  } else {
+    shipmentBody.service_level = "standard";
+  }
+
   const result = await interAppCall(
     "POST",
     `${baseUrl}/api/v1/shipments`,
     token,
-    {
-      shipping_quote_id: order.shippingQuoteId,
-      order_id: order.orderId,
-      order_seller_group_id: order.orderSellerGroupId,
-      sales_order_id: salesOrderId,
-      seller_profile_id: sellerProfileId,
-      buyer_profile_id: order.buyerProfileId,
-      shipping_address_snapshot: order.shippingAddressSnapshot,
-      packages,
-    },
+    shipmentBody,
     { "Idempotency-Key": `shipment-${salesOrderId}` }
   );
 
