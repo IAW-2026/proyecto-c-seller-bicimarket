@@ -433,7 +433,7 @@ export default function ProductDetailPage({
     return (
       <div className="space-y-4">
         <Link href="/dashboard/products" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          <ChevronLeft className="size-4" /> Volver a productos
+          <ChevronLeft className="size-4" /> Volver al catálogo
         </Link>
         <p className="text-sm text-destructive">Producto no encontrado.</p>
       </div>
@@ -447,7 +447,7 @@ export default function ProductDetailPage({
         href="/dashboard/products"
         className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
-        <ChevronLeft className="size-4" /> Volver a productos
+        <ChevronLeft className="size-4" /> Volver al catálogo
       </Link>
 
       {/* Header */}
