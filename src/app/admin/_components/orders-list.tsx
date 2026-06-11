@@ -149,13 +149,13 @@ export function AdminOrdersList() {
     page,
   });
 
-  function handleFulfillmentChange(val: string) {
-    setFulfillmentStatus(val === "all" ? "" : val);
+  function handleFulfillmentChange(val: string | null) {
+    setFulfillmentStatus(!val || val === "all" ? "" : val);
     setPage(1);
   }
 
-  function handlePaymentChange(val: string) {
-    setPaymentStatus(val === "all" ? "" : val);
+  function handlePaymentChange(val: string | null) {
+    setPaymentStatus(!val || val === "all" ? "" : val);
     setPage(1);
   }
 

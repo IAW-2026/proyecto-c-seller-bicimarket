@@ -48,6 +48,13 @@ export async function PATCH(
     );
   }
 
+  if (newStatus === "ready_to_ship" && !order.shippingQuoteId) {
+    return Errors.unprocessable(
+      "MISSING_SHIPPING_QUOTE",
+      "Cannot mark order as ready to ship: no shipping quote ID associated with this order"
+    );
+  }
+
   const updated = await prisma.salesOrder.update({
     where: { id: salesOrderId },
     data: {
@@ -110,7 +117,8 @@ async function notifyShipping(salesOrderId: string, order: OrderWithItems, selle
     description: item.productNameSnapshot,
   }));
 
-  const body: Record<string, unknown> = {
+  const body = {
+    shipping_quote_id: order.shippingQuoteId,
     order_id: order.orderId,
     order_seller_group_id: order.orderSellerGroupId,
     sales_order_id: salesOrderId,
@@ -120,13 +128,10 @@ async function notifyShipping(salesOrderId: string, order: OrderWithItems, selle
     packages,
   };
 
-  // Include the quote ID if we stored it at sales-order creation time.
-  if (order.shippingQuoteId) {
-    body.shipping_quote_id = order.shippingQuoteId;
-  }
-
   const url = `${shippingUrl.replace(/\/$/, "")}/api/v1/shipments`;
-  const result = await interAppCall("POST", url, token, body);
+  const result = await interAppCall("POST", url, token, body, {
+    "Idempotency-Key": `shipment-${salesOrderId}`,
+  });
 
   if (!result.ok) {
     // Per docs §2 rule 7: log and report — do NOT block the seller's status change.

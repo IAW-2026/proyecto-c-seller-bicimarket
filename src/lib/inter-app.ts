@@ -16,7 +16,8 @@ export async function interAppCall(
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
   url: string,
   serviceToken: string,
-  body?: unknown
+  body?: unknown,
+  extraHeaders?: Record<string, string>
 ): Promise<InterAppResponse> {
   const requestId = randomUUID();
   const headers: Record<string, string> = {
@@ -24,6 +25,7 @@ export async function interAppCall(
     "X-Request-Id": requestId,
     "User-Agent": "bicimarket-seller/1.0",
     ...(body != null ? { "Content-Type": "application/json" } : {}),
+    ...(extraHeaders ?? {}),
   };
 
   let lastError: unknown;
