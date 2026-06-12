@@ -241,7 +241,7 @@ export function SettlementsTab() {
   const stats = [
     { label: "Total acreditado", value: formatCents(paidTotal), icon: CheckCircle, color: "text-primary" },
     { label: "Pendiente de acreditación", value: formatCents(pendingTotal), icon: Clock, color: "text-warning" },
-    { label: "Comisión cobrada", value: formatCents(feesTotal), icon: TrendingDown, color: "text-muted-foreground", sub: "10% sobre el bruto" },
+    { label: "Comisión cobrada", value: formatCents(feesTotal), icon: TrendingDown, color: "text-muted-foreground" },
   ];
 
   const q = search.trim().toLowerCase();
@@ -292,7 +292,6 @@ export function SettlementsTab() {
                 <p className={`font-mono text-2xl font-semibold ${s.color === "text-primary" ? "text-primary" : ""}`}>
                   {s.value}
                 </p>
-                {s.sub && <p className="mt-0.5 text-xs text-muted-foreground">{s.sub}</p>}
               </CardContent>
             </Card>
           </StaggerItem>
