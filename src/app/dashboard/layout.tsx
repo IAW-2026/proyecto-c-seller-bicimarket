@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { AppSidebar } from "./_components/app-sidebar";
+import { ThemeToggle } from "./_components/theme-toggle";
 
 export default async function DashboardLayout({
   children,
@@ -35,6 +36,9 @@ export default async function DashboardLayout({
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mx-2 h-4" />
           <span className="font-semibold text-sm">BiciMarket Vendedor</span>
+          <div className="ml-auto">
+            <ThemeToggle />
+          </div>
         </header>
         <main className="flex-1 px-8 py-8">{children}</main>
       </SidebarInset>

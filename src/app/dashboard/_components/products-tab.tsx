@@ -3,7 +3,18 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Bike, Lock, Clock } from "lucide-react";
+import {
+  Bike,
+  Lock,
+  Search,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Zap,
+  FileEdit,
+  PauseCircle,
+  Archive,
+} from "lucide-react";
 import {
   useMyProducts,
   useCreateProduct,
@@ -27,7 +38,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -43,7 +53,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 import { formatCents } from "@/lib/format";
+
+// ── Types ────────────────────────────────────────────────────
+
+type ProductSortKey = "title" | "price";
+type SortDir = "asc" | "desc";
 
 // ── Constants ────────────────────────────────────────────────
 
@@ -79,6 +95,13 @@ const STATUS_LABELS: Record<Product["status"], string> = {
   archived: "Archivado",
 };
 
+// ── Sort icon helper ─────────────────────────────────────────
+
+function SortIndicator({ active, dir }: { active: boolean; dir: SortDir }) {
+  if (!active) return <ArrowUpDown className="size-3 opacity-40" />;
+  return dir === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />;
+}
+
 // ── Create product dialog ────────────────────────────────────
 
 const EMPTY_FORM: CreateProductInput = {
@@ -108,7 +131,9 @@ function CreateProductDialog({
   const busy = create.isPending || addImage.isPending;
 
   useEffect(() => {
-    return () => { if (imagePreview) URL.revokeObjectURL(imagePreview); };
+    return () => {
+      if (imagePreview) URL.revokeObjectURL(imagePreview);
+    };
   }, [imagePreview]);
 
   function set<K extends keyof CreateProductInput>(k: K, v: CreateProductInput[K]) {
@@ -302,13 +327,19 @@ function CreateProductDialog({
             />
             {imagePreview && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={imagePreview} alt="Vista previa" className="mt-2 max-h-36 w-full rounded-md border object-contain" />
+              <img
+                src={imagePreview}
+                alt="Vista previa"
+                className="mt-2 max-h-36 w-full rounded-md border object-contain"
+              />
             )}
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={handleClose} disabled={busy}>Cancelar</Button>
+          <Button variant="outline" onClick={handleClose} disabled={busy}>
+            Cancelar
+          </Button>
           <Button disabled={busy} onClick={handleSubmit}>
             {busy ? "Creando…" : "Crear producto"}
           </Button>
@@ -335,7 +366,9 @@ function AddImageDialog({
   const add = useAddProductImage();
 
   useEffect(() => {
-    return () => { if (preview) URL.revokeObjectURL(preview); };
+    return () => {
+      if (preview) URL.revokeObjectURL(preview);
+    };
   }, [preview]);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -368,7 +401,9 @@ function AddImageDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Agregar imagen</DialogTitle>
-          <DialogDescription>Seleccioná un archivo (JPEG, PNG, WebP o GIF · máx. 5 MB).</DialogDescription>
+          <DialogDescription>
+            Seleccioná un archivo (JPEG, PNG, WebP o GIF · máx. 5 MB).
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
@@ -381,7 +416,11 @@ function AddImageDialog({
           />
           {preview && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={preview} alt="Vista previa" className="max-h-48 w-full rounded-md border object-contain" />
+            <img
+              src={preview}
+              alt="Vista previa"
+              className="max-h-48 w-full rounded-md border object-contain"
+            />
           )}
           {file && (
             <p className="text-xs text-muted-foreground">
@@ -391,7 +430,9 @@ function AddImageDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={handleClose}>Cancelar</Button>
+          <Button variant="outline" onClick={handleClose}>
+            Cancelar
+          </Button>
           <Button disabled={!file || add.isPending} onClick={handleAdd}>
             {add.isPending ? "Subiendo…" : "Subir imagen"}
           </Button>
@@ -430,7 +471,7 @@ function ProductRow({ product }: { product: Product }) {
 
   return (
     <>
-      <TableRow>
+      <TableRow className="transition-colors">
         <TableCell>
           <p className="font-medium text-sm leading-tight">{product.title}</p>
           <p className="text-xs text-muted-foreground mt-0.5">
@@ -452,7 +493,9 @@ function ProductRow({ product }: { product: Product }) {
         <TableCell>
           <div className="flex gap-1.5 flex-wrap">
             <Link href={`/dashboard/products/${product.id}`}>
-              <Button size="sm" variant="outline">Ver</Button>
+              <Button size="sm" variant="outline">
+                Ver
+              </Button>
             </Link>
             <Button size="sm" variant="outline" disabled={busy} onClick={() => setAddImageOpen(true)}>
               + Imagen
@@ -486,15 +529,39 @@ function ProductRow({ product }: { product: Product }) {
   );
 }
 
-// ── Shared table header ──────────────────────────────────────
+// ── Table header ─────────────────────────────────────────────
 
-function ProductTableHeader() {
+function ProductTableHeader({
+  sortKey,
+  sortDir,
+  onSort,
+}: {
+  sortKey: ProductSortKey;
+  sortDir: SortDir;
+  onSort: (key: ProductSortKey) => void;
+}) {
   return (
     <TableHeader>
       <TableRow>
-        <TableHead>Producto</TableHead>
+        <TableHead>
+          <button
+            className="flex items-center gap-1 hover:text-foreground transition-colors"
+            onClick={() => onSort("title")}
+          >
+            Producto
+            <SortIndicator active={sortKey === "title"} dir={sortDir} />
+          </button>
+        </TableHead>
         <TableHead>Condición</TableHead>
-        <TableHead className="text-right">Precio</TableHead>
+        <TableHead className="text-right">
+          <button
+            className="flex items-center gap-1 hover:text-foreground transition-colors ml-auto"
+            onClick={() => onSort("price")}
+          >
+            Precio
+            <SortIndicator active={sortKey === "price"} dir={sortDir} />
+          </button>
+        </TableHead>
         <TableHead>Estado</TableHead>
         <TableHead className="text-center">Imgs</TableHead>
         <TableHead>Acciones</TableHead>
@@ -507,9 +574,23 @@ function ProductTableHeader() {
 
 export function ProductsTab() {
   const [createOpen, setCreateOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | Product["status"]>("all");
+  const [sortKey, setSortKey] = useState<ProductSortKey>("title");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+
   const { data, isLoading, error } = useMyProducts();
   const { data: profile } = useSellerProfile();
   const isVerified = profile?.verification_status === "verified";
+
+  function toggleSort(key: ProductSortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
 
   if (isLoading) return <p className="text-sm text-muted-foreground">Cargando productos…</p>;
 
@@ -531,15 +612,57 @@ export function ProductsTab() {
   }
 
   const products = data?.data ?? [];
-  const active = products.filter((p) => p.status !== "archived");
-  const archived = products.filter((p) => p.status === "archived");
+  const q = search.trim().toLowerCase();
+
+  function filterAndSort(list: Product[]) {
+    return list
+      .filter((p) => {
+        if (statusFilter !== "all" && p.status !== statusFilter) return false;
+        if (q && !p.title.toLowerCase().includes(q) && !p.brand.toLowerCase().includes(q))
+          return false;
+        return true;
+      })
+      .sort((a, b) => {
+        const cmp =
+          sortKey === "price"
+            ? a.price_cents - b.price_cents
+            : a.title.localeCompare(b.title, "es");
+        return sortDir === "asc" ? cmp : -cmp;
+      });
+  }
+
+  const active = filterAndSort(products.filter((p) => p.status !== "archived"));
+  const archived = filterAndSort(products.filter((p) => p.status === "archived"));
+  const isFiltered = statusFilter !== "all" || q.length > 0;
 
   const stats = [
-    { label: "Activos", value: products.filter((p) => p.status === "active").length },
-    { label: "Borradores", value: products.filter((p) => p.status === "draft").length },
-    { label: "Pausados", value: products.filter((p) => p.status === "paused").length },
-    { label: "Archivados", value: archived.length },
+    {
+      label: "Activos",
+      value: products.filter((p) => p.status === "active").length,
+      icon: Zap,
+      color: "text-primary",
+    },
+    {
+      label: "Borradores",
+      value: products.filter((p) => p.status === "draft").length,
+      icon: FileEdit,
+      color: "text-warning",
+    },
+    {
+      label: "Pausados",
+      value: products.filter((p) => p.status === "paused").length,
+      icon: PauseCircle,
+      color: "text-muted-foreground",
+    },
+    {
+      label: "Archivados",
+      value: products.filter((p) => p.status === "archived").length,
+      icon: Archive,
+      color: "text-muted-foreground",
+    },
   ];
+
+  const tableHeaderProps = { sortKey, sortDir, onSort: toggleSort };
 
   return (
     <div className="space-y-6">
@@ -563,49 +686,89 @@ export function ProductsTab() {
         {stats.map((s) => (
           <Card key={s.label}>
             <CardContent className="px-4 py-3">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">{s.label}</p>
-              <p className="mt-1 font-mono text-2xl font-semibold">{s.value}</p>
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">{s.label}</p>
+                <s.icon className={`size-4 ${s.color}`} aria-hidden="true" />
+              </div>
+              <p className="font-mono text-2xl font-semibold">{s.value}</p>
             </CardContent>
           </Card>
         ))}
       </div>
 
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2">
+        <div className="relative flex-1 min-w-48">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+          <Input
+            className="pl-8 h-8 text-sm"
+            placeholder="Buscar por título o marca…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <Select
+          value={statusFilter}
+          onValueChange={(v) => setStatusFilter(v as "all" | Product["status"])}
+        >
+          <SelectTrigger className="h-8 w-44 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los estados</SelectItem>
+            {(Object.entries(STATUS_LABELS) as [Product["status"], string][]).map(([v, l]) => (
+              <SelectItem key={v} value={v}>
+                {l}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       {/* Active products table */}
-      {active.length === 0 ? (
+      {active.length === 0 && archived.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-12 text-center">
           <div className="flex size-10 items-center justify-center rounded-full bg-muted">
             <Bike className="size-5 text-muted-foreground" aria-hidden="true" />
           </div>
           <p className="text-sm text-muted-foreground">
-            {isVerified
-              ? "No tenés productos. Creá el primero."
-              : "Verificá tu perfil para empezar a publicar."}
+            {isFiltered
+              ? "Sin resultados para esa búsqueda."
+              : isVerified
+                ? "No tenés productos. Creá el primero."
+                : "Verificá tu perfil para empezar a publicar."}
           </p>
         </div>
       ) : (
-        <Table>
-          <ProductTableHeader />
-          <TableBody>
-            {active.map((p) => (
-              <ProductRow key={p.id} product={p} />
-            ))}
-          </TableBody>
-        </Table>
-      )}
+        <>
+          {active.length > 0 && (
+            <Table>
+              <ProductTableHeader {...tableHeaderProps} />
+              <TableBody>
+                {active.map((p) => (
+                  <ProductRow key={p.id} product={p} />
+                ))}
+              </TableBody>
+            </Table>
+          )}
 
-      {/* Archived products table */}
-      {archived.length > 0 && (
-        <section className="space-y-3">
-          <h3 className="font-heading text-sm font-semibold text-muted-foreground">Archivados</h3>
-          <Table>
-            <ProductTableHeader />
-            <TableBody>
-              {archived.map((p) => (
-                <ProductRow key={p.id} product={p} />
-              ))}
-            </TableBody>
-          </Table>
-        </section>
+          {/* Archived products */}
+          {archived.length > 0 && (
+            <section className="space-y-3">
+              <h3 className="font-heading text-sm font-semibold text-muted-foreground">
+                Archivados
+              </h3>
+              <Table>
+                <ProductTableHeader {...tableHeaderProps} />
+                <TableBody>
+                  {archived.map((p) => (
+                    <ProductRow key={p.id} product={p} />
+                  ))}
+                </TableBody>
+              </Table>
+            </section>
+          )}
+        </>
       )}
 
       <CreateProductDialog open={createOpen} onOpenChange={setCreateOpen} />
