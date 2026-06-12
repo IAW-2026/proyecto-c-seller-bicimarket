@@ -8,17 +8,22 @@ export async function GET(request: NextRequest) {
 
   const { page, limit, skip } = getPaginationParams(request);
 
+  // Sellers see all their own products, including archived ones (deletedAt may be set on
+  // products archived before the current logic; archived status always takes precedence).
+  const where = {
+    sellerProfileId: profile!.id,
+    OR: [{ deletedAt: null }, { status: "archived" as const }],
+  };
+
   const [products, total] = await Promise.all([
     prisma.product.findMany({
-      where: { sellerProfileId: profile!.id, deletedAt: null },
+      where,
       include: { images: { orderBy: { position: "asc" } } },
       orderBy: { createdAt: "desc" },
       skip,
       take: limit,
     }),
-    prisma.product.count({
-      where: { sellerProfileId: profile!.id, deletedAt: null },
-    }),
+    prisma.product.count({ where }),
   ]);
 
   const data = products.map((p) => ({

@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
 
   const where = {
     sellerProfileId: profile!.id,
-    deletedAt: null,
+    OR: [{ deletedAt: null }, { status: "archived" as const }],
     ...(status && { status: status as never }),
   };
 
