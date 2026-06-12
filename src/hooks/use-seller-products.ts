@@ -44,6 +44,26 @@ type PaginatedProducts = {
   pagination: { total: number };
 };
 
+/**
+ * Optimistically merges a partial patch into one product in the cached list,
+ * returning a rollback fn.
+ */
+function optimisticPatchProduct(
+  qc: ReturnType<typeof useQueryClient>,
+  id: string,
+  patch: Partial<Product>
+) {
+  const snapshot = qc.getQueryData<PaginatedProducts>(["my-products"]);
+  qc.setQueryData<PaginatedProducts>(["my-products"], (old) =>
+    old
+      ? { ...old, data: old.data.map((p) => (p.id === id ? { ...p, ...patch } : p)) }
+      : old
+  );
+  return () => {
+    if (snapshot) qc.setQueryData(["my-products"], snapshot);
+  };
+}
+
 export function useMyProducts() {
   return useQuery<PaginatedProducts>({
     queryKey: ["my-products"],
@@ -67,7 +87,12 @@ export function usePatchProduct() {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: PatchProductInput }) =>
       api.patch(`/v1/products/${id}`, data),
-    onSuccess: (_, { id }) => {
+    onMutate: async ({ id, data }) => {
+      await qc.cancelQueries({ queryKey: ["my-products"] });
+      return { rollback: optimisticPatchProduct(qc, id, data as Partial<Product>) };
+    },
+    onError: (_e, _vars, ctx) => ctx?.rollback(),
+    onSettled: (_d, _e, { id }) => {
       qc.invalidateQueries({ queryKey: ["my-products"] });
       qc.invalidateQueries({ queryKey: ["product", id] });
     },
@@ -78,7 +103,12 @@ export function useArchiveProduct() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete(`/v1/products/${id}`),
-    onSuccess: (_, id) => {
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: ["my-products"] });
+      return { rollback: optimisticPatchProduct(qc, id, { status: "archived" }) };
+    },
+    onError: (_e, _vars, ctx) => ctx?.rollback(),
+    onSettled: (_d, _e, id) => {
       qc.invalidateQueries({ queryKey: ["my-products"] });
       qc.invalidateQueries({ queryKey: ["product", id] });
     },

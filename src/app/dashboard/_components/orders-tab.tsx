@@ -53,6 +53,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { Stagger, StaggerItem, AnimatedNumber } from "@/components/motion";
 import { formatCents } from "@/lib/format";
 
 // ── Types ────────────────────────────────────────────────────
@@ -196,7 +197,13 @@ function OrderRow({ order }: { order: SalesOrder }) {
         </TableCell>
         <TableCell className="font-semibold text-sm">{formatCents(order.total_cents)}</TableCell>
         <TableCell>
-          <Badge variant={STATUS_VARIANT[order.fulfillment_status] ?? "outline"}>
+          <Badge variant={STATUS_VARIANT[order.fulfillment_status] ?? "outline"} className="gap-1.5">
+            {order.fulfillment_status === "pending" && (
+              <span className="relative flex size-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-current opacity-75" />
+                <span className="relative inline-flex size-1.5 rounded-full bg-current" />
+              </span>
+            )}
             {STATUS_LABEL[order.fulfillment_status] ?? order.fulfillment_status}
           </Badge>
         </TableCell>
@@ -423,19 +430,23 @@ export function OrdersTab() {
       <h3 className="font-heading text-base font-semibold">Pedidos</h3>
 
       {/* Stat boxes */}
-      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+      <Stagger className="grid gap-3 grid-cols-2 sm:grid-cols-4">
         {stats.map((s) => (
-          <Card key={s.label}>
-            <CardContent className="px-4 py-3">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">{s.label}</p>
-                <s.icon className={`size-4 ${s.color}`} aria-hidden="true" />
-              </div>
-              <p className="font-mono text-2xl font-semibold">{s.value}</p>
-            </CardContent>
-          </Card>
+          <StaggerItem key={s.label}>
+            <Card className="transition-shadow hover:shadow-md">
+              <CardContent className="px-4 py-3">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">{s.label}</p>
+                  <s.icon className={`size-4 ${s.color}`} aria-hidden="true" />
+                </div>
+                <p className="font-mono text-2xl font-semibold">
+                  <AnimatedNumber value={s.value} />
+                </p>
+              </CardContent>
+            </Card>
+          </StaggerItem>
         ))}
-      </div>
+      </Stagger>
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2">

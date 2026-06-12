@@ -54,6 +54,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { Stagger, StaggerItem, AnimatedNumber } from "@/components/motion";
 import { formatCents } from "@/lib/format";
 
 // ── Types ────────────────────────────────────────────────────
@@ -682,19 +683,23 @@ export function ProductsTab() {
       </div>
 
       {/* Stat boxes */}
-      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+      <Stagger className="grid gap-3 grid-cols-2 sm:grid-cols-4">
         {stats.map((s) => (
-          <Card key={s.label}>
-            <CardContent className="px-4 py-3">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">{s.label}</p>
-                <s.icon className={`size-4 ${s.color}`} aria-hidden="true" />
-              </div>
-              <p className="font-mono text-2xl font-semibold">{s.value}</p>
-            </CardContent>
-          </Card>
+          <StaggerItem key={s.label}>
+            <Card className="transition-shadow hover:shadow-md">
+              <CardContent className="px-4 py-3">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">{s.label}</p>
+                  <s.icon className={`size-4 ${s.color}`} aria-hidden="true" />
+                </div>
+                <p className="font-mono text-2xl font-semibold">
+                  <AnimatedNumber value={s.value} />
+                </p>
+              </CardContent>
+            </Card>
+          </StaggerItem>
         ))}
-      </div>
+      </Stagger>
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2">

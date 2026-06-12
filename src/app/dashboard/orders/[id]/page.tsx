@@ -33,6 +33,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCents } from "@/lib/format";
+import { OrderFlow } from "./_components/order-flow";
 
 // ── Maps ─────────────────────────────────────────────────────
 
@@ -195,6 +196,18 @@ export default function OrderDetailPage({
           <span className="text-sm text-muted-foreground">En camino al comprador</span>
         )}
       </div>
+
+      {/* Flujo de estado */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium text-muted-foreground">
+            Estado del pedido
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <OrderFlow status={order.fulfillment_status} />
+        </CardContent>
+      </Card>
 
       {/* Status summary */}
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-3">
