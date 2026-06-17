@@ -64,11 +64,35 @@ export async function PATCH(
     include: { items: true },
   });
 
+  if (newStatus === "preparing") {
+    await notifyBuyerPreparing(order.orderId, order.orderSellerGroupId);
+  }
+
   if (newStatus === "ready_to_ship") {
     await notifyShipping(salesOrderId, order, profile!.id);
   }
 
   return Response.json(formatSalesOrder(updated));
+}
+
+async function notifyBuyerPreparing(orderId: string, sellerGroupId: string) {
+  const buyerUrl = process.env.BUYER_API_URL;
+  const token = process.env.SELLER_TO_BUYER_SERVICE_TOKEN;
+
+  if (!buyerUrl || !token) {
+    console.error("[inter-app] BUYER_API_URL or SELLER_TO_BUYER_SERVICE_TOKEN not set — skipping prepare notification");
+    return;
+  }
+
+  const url = `${buyerUrl.replace(/\/$/, "")}/api/v1/orders/${orderId}/seller-groups/${sellerGroupId}/status`;
+  const result = await interAppCall("PATCH", url, token, { status: "preparing" });
+
+  if (!result.ok) {
+    console.error(
+      `[inter-app] Failed to notify Buyer App of preparing order ${orderId} / group ${sellerGroupId}`,
+      result.data
+    );
+  }
 }
 
 type OrderWithItems = {
