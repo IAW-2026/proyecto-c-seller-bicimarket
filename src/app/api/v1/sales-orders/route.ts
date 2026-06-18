@@ -4,6 +4,7 @@ import {
   Errors,
   getPaginationParams,
   paginatedResponse,
+  requireAdmin,
   requireSellerProfile,
   requireServiceToken,
 } from "@/lib/api-utils";
@@ -13,13 +14,66 @@ import { newId } from "@/lib/utils";
 // ── Handlers ─────────────────────────────────────────────────
 
 export async function GET(request: NextRequest) {
+  const url = new URL(request.url);
+  const { page, limit, skip } = getPaginationParams(request);
+
+  // Admin mode: returns all orders with optional date + status filters
+  const { error: adminError } = await requireAdmin();
+  if (!adminError) {
+    const fulfillmentStatus = url.searchParams.get("fulfillment_status");
+    const fromStr = url.searchParams.get("from");
+    const toStr = url.searchParams.get("to");
+
+    const fromDate = fromStr ? new Date(fromStr) : undefined;
+    const toDate = toStr ? new Date(toStr) : undefined;
+
+    if (fromDate && isNaN(fromDate.getTime())) return Errors.badRequest("Invalid 'from' date");
+    if (toDate && isNaN(toDate.getTime())) return Errors.badRequest("Invalid 'to' date");
+
+    const where = {
+      ...(fulfillmentStatus && { fulfillmentStatus: fulfillmentStatus as never }),
+      ...(fromDate || toDate
+        ? { createdAt: { ...(fromDate && { gte: fromDate }), ...(toDate && { lte: toDate }) } }
+        : {}),
+    };
+
+    const [orders, total] = await Promise.all([
+      prisma.salesOrder.findMany({
+        where,
+        include: {
+          sellerProfile: { select: { displayName: true } },
+          items: { select: { id: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+      }),
+      prisma.salesOrder.count({ where }),
+    ]);
+
+    const data = orders.map((o) => ({
+      id: o.id,
+      order_id: o.orderId,
+      seller_profile_id: o.sellerProfileId,
+      seller_display_name: o.sellerProfile.displayName,
+      buyer_profile_id: o.buyerProfileId,
+      fulfillment_status: o.fulfillmentStatus,
+      payment_status: o.paymentStatus,
+      shipping_status: o.shippingStatus,
+      items_count: o.items.length,
+      total_cents: o.totalCents,
+      currency: o.currency,
+      created_at: o.createdAt,
+    }));
+
+    return Response.json(paginatedResponse(data, total, page, limit));
+  }
+
+  // Seller mode: returns only the authenticated seller's own orders
   const { profile, error } = await requireSellerProfile();
   if (error) return error;
 
-  const url = new URL(request.url);
   const status = url.searchParams.get("status");
-  const { page, limit, skip } = getPaginationParams(request);
-
   const where = {
     sellerProfileId: profile!.id,
     ...(status && { fulfillmentStatus: status as never }),
