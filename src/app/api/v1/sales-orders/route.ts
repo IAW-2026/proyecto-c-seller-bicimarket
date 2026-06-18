@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
         where,
         include: {
           sellerProfile: { select: { displayName: true } },
-          items: { select: { id: true } },
+          items: true,
         },
         orderBy: { createdAt: "desc" },
         skip,
@@ -54,16 +54,29 @@ export async function GET(request: NextRequest) {
     const data = orders.map((o) => ({
       id: o.id,
       order_id: o.orderId,
+      order_seller_group_id: o.orderSellerGroupId,
       seller_profile_id: o.sellerProfileId,
       seller_display_name: o.sellerProfile.displayName,
       buyer_profile_id: o.buyerProfileId,
       fulfillment_status: o.fulfillmentStatus,
       payment_status: o.paymentStatus,
       shipping_status: o.shippingStatus,
-      items_count: o.items.length,
+      shipment_id: o.shipmentId,
+      shipping_quote_id: o.shippingQuoteId,
+      items_subtotal_cents: o.itemsSubtotalCents,
+      shipping_cost_cents: o.shippingCostCents,
       total_cents: o.totalCents,
       currency: o.currency,
+      shipping_address_snapshot: o.shippingAddressSnapshot,
+      items: o.items.map((i) => ({
+        id: i.id,
+        product_id: i.productId,
+        product_name_snapshot: i.productNameSnapshot,
+        unit_price_cents: i.unitPriceCents,
+        quantity: i.quantity,
+      })),
       created_at: o.createdAt,
+      updated_at: o.updatedAt,
     }));
 
     return Response.json(paginatedResponse(data, total, page, limit));
