@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdminOrDashboardToken } from "@/lib/api-utils";
+import { requireAdminOrDashboardToken, Errors } from "@/lib/api-utils";
 
 export async function GET(request: NextRequest) {
   const error = await requireAdminOrDashboardToken(request);
