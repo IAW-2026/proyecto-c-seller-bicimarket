@@ -65,6 +65,7 @@ export async function GET(request: NextRequest) {
     total,
     pending_count: countFor("pending"),
     accepted_count: countFor("accepted"),
+    accepted_and_beyond_count: acceptedAndBeyond,
     delivered_count: deliveredCount,
     acceptance_rate: acceptanceRate,
     pending_by_seller: pendingBySeller.map((g) => ({
