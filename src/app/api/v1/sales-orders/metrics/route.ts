@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { Errors, requireAdmin } from "@/lib/api-utils";
+import { requireAdminOrDashboardToken } from "@/lib/api-utils";
 
 export async function GET(request: NextRequest) {
-  const { error } = await requireAdmin();
+  const error = await requireAdminOrDashboardToken(request);
   if (error) return error;
 
   const url = new URL(request.url);

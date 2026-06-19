@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { Errors, requireAdmin, getPaginationParams, paginatedResponse } from "@/lib/api-utils";
+import { requireAdminOrDashboardToken, getPaginationParams, paginatedResponse } from "@/lib/api-utils";
 
 export async function GET(request: NextRequest) {
-  const { error } = await requireAdmin();
+  const error = await requireAdminOrDashboardToken(request);
   if (error) return error;
 
   const url = new URL(request.url);
@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: "desc" },
       skip,
       take: limit,
+      include: { _count: { select: { products: { where: { deletedAt: null } } } } },
     }),
     prisma.sellerProfile.count({ where }),
   ]);
@@ -32,6 +33,7 @@ export async function GET(request: NextRequest) {
     bank_account_reference: p.bankAccountReference,
     pickup_address: p.pickupAddress,
     verification_status: p.verificationStatus,
+    product_count: p._count.products,
     created_at: p.createdAt,
   }));
 

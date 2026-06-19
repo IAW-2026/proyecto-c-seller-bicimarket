@@ -1,8 +1,9 @@
+import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/api-utils";
+import { requireAdminOrDashboardToken } from "@/lib/api-utils";
 
-export async function GET() {
-  const { error } = await requireAdmin();
+export async function GET(request: NextRequest) {
+  const error = await requireAdminOrDashboardToken(request);
   if (error) return error;
 
   const [total, byStatus, productTotal] = await Promise.all([

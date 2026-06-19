@@ -89,6 +89,12 @@ export function requireServiceToken(request: Request, envVar: string) {
   return null;
 }
 
+export async function requireAdminOrDashboardToken(request: Request) {
+  if (validateServiceToken(request, "DASHBOARD_TO_SELLER_SERVICE_TOKEN")) return null;
+  const { error } = await requireAdmin();
+  return error;
+}
+
 // ── Pagination ───────────────────────────────────────────────
 
 export function getPaginationParams(request: Request) {
