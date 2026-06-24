@@ -12,11 +12,15 @@ import { newId } from "@/lib/utils";
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
+  const split = (key: string) =>
+    url.searchParams.get(key)?.split(",").map((s) => s.trim()).filter(Boolean);
+
   const q = url.searchParams.get("q");
-  const category = url.searchParams.get("category");
-  const brand = url.searchParams.get("brand");
-  const condition = url.searchParams.get("condition");
-  const sellerId = url.searchParams.get("seller_id");
+  const ids = split("ids");
+  const categories = split("category");
+  const brands = split("brand");
+  const conditions = split("condition");
+  const sellerIds = split("seller_id");
   const minPrice = url.searchParams.get("min_price_cents");
   const maxPrice = url.searchParams.get("max_price_cents");
   const sort = url.searchParams.get("sort") ?? "-created_at";
@@ -25,11 +29,12 @@ export async function GET(request: NextRequest) {
   const where: Prisma.ProductWhereInput = {
     status: ProductStatus.active,
     deletedAt: null,
+    ...(ids && ids.length > 0 && { id: { in: ids } }),
     ...(q && { title: { contains: q, mode: "insensitive" } }),
-    ...(category && { category: category as never }),
-    ...(brand && { brand: { equals: brand, mode: "insensitive" } }),
-    ...(condition && { condition: condition as never }),
-    ...(sellerId && { sellerProfileId: sellerId }),
+    ...(categories && categories.length > 0 && { category: { in: categories as never[] } }),
+    ...(brands && brands.length > 0 && { brand: { in: brands, mode: "insensitive" } }),
+    ...(conditions && conditions.length > 0 && { condition: { in: conditions as never[] } }),
+    ...(sellerIds && sellerIds.length > 0 && { sellerProfileId: { in: sellerIds } }),
     ...(minPrice && { priceCents: { gte: parseInt(minPrice, 10) } }),
     ...(maxPrice && {
       priceCents: {
