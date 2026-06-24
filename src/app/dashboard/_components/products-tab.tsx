@@ -21,6 +21,7 @@ import {
   usePatchProduct,
   useArchiveProduct,
   useAddProductImage,
+  useAddProductImageUrl,
   type Product,
   type CreateProductInput,
 } from "@/hooks/use-seller-products";
@@ -124,18 +125,19 @@ function CreateProductDialog({
   onOpenChange: (v: boolean) => void;
 }) {
   const [form, setForm] = useState<CreateProductInput>(EMPTY_FORM);
+  const [imageMode, setImageMode] = useState<"url" | "file">("url");
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFilePreview, setImageFilePreview] = useState<string | null>(null);
+  const [imageUrl, setImageUrl] = useState("");
   const imageInputRef = useRef<HTMLInputElement>(null);
   const create = useCreateProduct();
   const addImage = useAddProductImage();
-  const busy = create.isPending || addImage.isPending;
+  const addImageUrl = useAddProductImageUrl();
+  const busy = create.isPending || addImage.isPending || addImageUrl.isPending;
 
   useEffect(() => {
-    return () => {
-      if (imagePreview) URL.revokeObjectURL(imagePreview);
-    };
-  }, [imagePreview]);
+    return () => { if (imageFilePreview) URL.revokeObjectURL(imageFilePreview); };
+  }, [imageFilePreview]);
 
   function set<K extends keyof CreateProductInput>(k: K, v: CreateProductInput[K]) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -155,16 +157,26 @@ function CreateProductDialog({
 
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] ?? null;
-    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    if (imageFilePreview) URL.revokeObjectURL(imageFilePreview);
     setImageFile(f);
-    setImagePreview(f ? URL.createObjectURL(f) : null);
+    setImageFilePreview(f ? URL.createObjectURL(f) : null);
+  }
+
+  function switchImageMode(m: "url" | "file") {
+    setImageMode(m);
+    setImageFile(null);
+    if (imageFilePreview) URL.revokeObjectURL(imageFilePreview);
+    setImageFilePreview(null);
+    setImageUrl("");
+    if (imageInputRef.current) imageInputRef.current.value = "";
   }
 
   function handleClose() {
     setForm(EMPTY_FORM);
     setImageFile(null);
-    if (imagePreview) URL.revokeObjectURL(imagePreview);
-    setImagePreview(null);
+    if (imageFilePreview) URL.revokeObjectURL(imageFilePreview);
+    setImageFilePreview(null);
+    setImageUrl("");
     if (imageInputRef.current) imageInputRef.current.value = "";
     onOpenChange(false);
   }
@@ -182,14 +194,13 @@ function CreateProductDialog({
     };
     try {
       const res = await create.mutateAsync(payload);
-      if (imageFile) {
-        try {
-          await addImage.mutateAsync({ productId: res.data.id, file: imageFile });
-        } catch {
-          toast.error("Producto creado, pero no se pudo subir la imagen");
-          handleClose();
-          return;
-        }
+      const productId = res.data.id as string;
+      if (imageMode === "url" && imageUrl.trim()) {
+        try { await addImageUrl.mutateAsync({ productId, url: imageUrl.trim() }); }
+        catch { toast.error("Producto creado, pero no se pudo guardar la imagen"); handleClose(); return; }
+      } else if (imageMode === "file" && imageFile) {
+        try { await addImage.mutateAsync({ productId, file: imageFile }); }
+        catch { toast.error("Producto creado, pero no se pudo subir la imagen"); handleClose(); return; }
       }
       toast.success("Producto creado en borrador");
       handleClose();
@@ -316,23 +327,61 @@ function CreateProductDialog({
             />
           </div>
 
-          <div className="space-y-1">
-            <Label htmlFor="product-image">Imagen</Label>
-            <Input
-              ref={imageInputRef}
-              id="product-image"
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              className="cursor-pointer"
-              onChange={handleImageChange}
-            />
-            {imagePreview && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={imagePreview}
-                alt="Vista previa"
-                className="mt-2 max-h-36 w-full rounded-md border object-contain"
-              />
+          <div className="space-y-1.5">
+            <Label>Imagen (opcional)</Label>
+            <div className="flex rounded-md border overflow-hidden text-sm font-medium">
+              <button
+                type="button"
+                className={`flex-1 py-1.5 transition-colors ${imageMode === "url" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+                onClick={() => switchImageMode("url")}
+              >
+                Link (URL)
+              </button>
+              <button
+                type="button"
+                className={`flex-1 py-1.5 transition-colors ${imageMode === "file" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+                onClick={() => switchImageMode("file")}
+              >
+                Archivo
+              </button>
+            </div>
+            {imageMode === "url" ? (
+              <>
+                <Input
+                  type="url"
+                  placeholder="https://ejemplo.com/imagen.jpg"
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                />
+                {(() => { try { return !!new URL(imageUrl.trim()); } catch { return false; } })() && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={imageUrl.trim()}
+                    alt="Vista previa"
+                    className="mt-1 max-h-36 w-full rounded-md border object-contain"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                  />
+                )}
+              </>
+            ) : (
+              <>
+                <Input
+                  ref={imageInputRef}
+                  id="product-image"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  className="cursor-pointer"
+                  onChange={handleImageChange}
+                />
+                {imageFilePreview && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={imageFilePreview}
+                    alt="Vista previa"
+                    className="mt-1 max-h-36 w-full rounded-md border object-contain"
+                  />
+                )}
+              </>
             )}
           </div>
         </div>
@@ -361,81 +410,132 @@ function AddImageDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
+  const [mode, setMode] = useState<"file" | "url">("url");
   const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [filePreview, setFilePreview] = useState<string | null>(null);
+  const [urlInput, setUrlInput] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-  const add = useAddProductImage();
+  const addFile = useAddProductImage();
+  const addUrl = useAddProductImageUrl();
+  const busy = addFile.isPending || addUrl.isPending;
 
   useEffect(() => {
-    return () => {
-      if (preview) URL.revokeObjectURL(preview);
-    };
-  }, [preview]);
+    return () => { if (filePreview) URL.revokeObjectURL(filePreview); };
+  }, [filePreview]);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] ?? null;
-    if (preview) URL.revokeObjectURL(preview);
+    if (filePreview) URL.revokeObjectURL(filePreview);
     setFile(f);
-    setPreview(f ? URL.createObjectURL(f) : null);
+    setFilePreview(f ? URL.createObjectURL(f) : null);
   }
 
   function handleClose() {
     setFile(null);
-    setPreview(null);
+    if (filePreview) URL.revokeObjectURL(filePreview);
+    setFilePreview(null);
+    setUrlInput("");
     if (inputRef.current) inputRef.current.value = "";
     onOpenChange(false);
   }
 
+  function switchMode(m: "file" | "url") {
+    setMode(m);
+    setFile(null);
+    if (filePreview) URL.revokeObjectURL(filePreview);
+    setFilePreview(null);
+    setUrlInput("");
+    if (inputRef.current) inputRef.current.value = "";
+  }
+
   async function handleAdd() {
-    if (!file) return;
     try {
-      await add.mutateAsync({ productId, file });
-      toast.success("Imagen subida");
+      if (mode === "url") {
+        const url = urlInput.trim();
+        if (!url) return;
+        await addUrl.mutateAsync({ productId, url });
+      } else {
+        if (!file) return;
+        await addFile.mutateAsync({ productId, file });
+      }
+      toast.success("Imagen agregada");
       handleClose();
     } catch {
-      toast.error("No se pudo subir la imagen");
+      toast.error("No se pudo agregar la imagen");
     }
   }
+
+  const urlValid = (() => { try { return !!new URL(urlInput.trim()); } catch { return false; } })();
+  const canSubmit = mode === "url" ? urlValid : !!file;
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Agregar imagen</DialogTitle>
-          <DialogDescription>
-            Seleccioná un archivo (JPEG, PNG, WebP o GIF · máx. 5 MB).
-          </DialogDescription>
+          <DialogDescription>Pegá un link o subí un archivo.</DialogDescription>
         </DialogHeader>
 
+        <div className="flex rounded-md border overflow-hidden text-sm font-medium">
+          <button
+            className={`flex-1 py-1.5 transition-colors ${mode === "url" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+            onClick={() => switchMode("url")}
+          >
+            Link (URL)
+          </button>
+          <button
+            className={`flex-1 py-1.5 transition-colors ${mode === "file" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+            onClick={() => switchMode("file")}
+          >
+            Archivo
+          </button>
+        </div>
+
         <div className="space-y-3">
-          <Input
-            ref={inputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
-            className="cursor-pointer"
-            onChange={handleFileChange}
-          />
-          {preview && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={preview}
-              alt="Vista previa"
-              className="max-h-48 w-full rounded-md border object-contain"
-            />
-          )}
-          {file && (
-            <p className="text-xs text-muted-foreground">
-              {file.name} · {(file.size / 1024).toFixed(0)} KB
-            </p>
+          {mode === "url" ? (
+            <>
+              <Input
+                type="url"
+                placeholder="https://ejemplo.com/imagen.jpg"
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+              />
+              {urlValid && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={urlInput.trim()}
+                  alt="Vista previa"
+                  className="max-h-48 w-full rounded-md border object-contain"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
+              )}
+            </>
+          ) : (
+            <>
+              <Input
+                ref={inputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="cursor-pointer"
+                onChange={handleFileChange}
+              />
+              {filePreview && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={filePreview} alt="Vista previa" className="max-h-48 w-full rounded-md border object-contain" />
+              )}
+              {file && (
+                <p className="text-xs text-muted-foreground">
+                  {file.name} · {(file.size / 1024).toFixed(0)} KB
+                </p>
+              )}
+            </>
           )}
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={handleClose}>
-            Cancelar
-          </Button>
-          <Button disabled={!file || add.isPending} onClick={handleAdd}>
-            {add.isPending ? "Subiendo…" : "Subir imagen"}
+          <Button variant="outline" onClick={handleClose}>Cancelar</Button>
+          <Button disabled={!canSubmit || busy} onClick={handleAdd}>
+            {busy ? "Guardando…" : "Agregar imagen"}
           </Button>
         </DialogFooter>
       </DialogContent>

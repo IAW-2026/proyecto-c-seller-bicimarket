@@ -8,6 +8,7 @@ import { ChevronLeft } from "lucide-react";
 import {
   useProduct,
   useAddProductImage,
+  useAddProductImageUrl,
   useDeleteProductImage,
   usePatchProduct,
   useArchiveProduct,
@@ -302,66 +303,130 @@ function AddImageDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
+  const [mode, setMode] = useState<"url" | "file">("url");
   const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [filePreview, setFilePreview] = useState<string | null>(null);
+  const [urlInput, setUrlInput] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-  const add = useAddProductImage();
-
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0] ?? null;
-    if (preview) URL.revokeObjectURL(preview);
-    setFile(f);
-    setPreview(f ? URL.createObjectURL(f) : null);
-  }
+  const addFile = useAddProductImage();
+  const addUrl = useAddProductImageUrl();
+  const busy = addFile.isPending || addUrl.isPending;
 
   function handleClose() {
     setFile(null);
-    if (preview) URL.revokeObjectURL(preview);
-    setPreview(null);
+    if (filePreview) URL.revokeObjectURL(filePreview);
+    setFilePreview(null);
+    setUrlInput("");
     if (inputRef.current) inputRef.current.value = "";
     onOpenChange(false);
   }
 
+  function switchMode(m: "url" | "file") {
+    setMode(m);
+    setFile(null);
+    if (filePreview) URL.revokeObjectURL(filePreview);
+    setFilePreview(null);
+    setUrlInput("");
+    if (inputRef.current) inputRef.current.value = "";
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0] ?? null;
+    if (filePreview) URL.revokeObjectURL(filePreview);
+    setFile(f);
+    setFilePreview(f ? URL.createObjectURL(f) : null);
+  }
+
   async function handleAdd() {
-    if (!file) return;
     try {
-      await add.mutateAsync({ productId, file });
-      toast.success("Imagen subida");
+      if (mode === "url") {
+        const url = urlInput.trim();
+        if (!url) return;
+        await addUrl.mutateAsync({ productId, url });
+      } else {
+        if (!file) return;
+        await addFile.mutateAsync({ productId, file });
+      }
+      toast.success("Imagen agregada");
       handleClose();
     } catch {
-      toast.error("No se pudo subir la imagen");
+      toast.error("No se pudo agregar la imagen");
     }
   }
+
+  const urlValid = (() => { try { return !!new URL(urlInput.trim()); } catch { return false; } })();
+  const canSubmit = mode === "url" ? urlValid : !!file;
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Agregar imagen</DialogTitle>
-          <DialogDescription>Seleccioná un archivo (JPEG, PNG, WebP o GIF · máx. 5 MB).</DialogDescription>
+          <DialogDescription>Pegá un link o subí un archivo.</DialogDescription>
         </DialogHeader>
+
+        <div className="flex rounded-md border overflow-hidden text-sm font-medium">
+          <button
+            type="button"
+            className={`flex-1 py-1.5 transition-colors ${mode === "url" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+            onClick={() => switchMode("url")}
+          >
+            Link (URL)
+          </button>
+          <button
+            type="button"
+            className={`flex-1 py-1.5 transition-colors ${mode === "file" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+            onClick={() => switchMode("file")}
+          >
+            Archivo
+          </button>
+        </div>
+
         <div className="space-y-3">
-          <Input
-            ref={inputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
-            className="cursor-pointer"
-            onChange={handleFileChange}
-          />
-          {preview && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={preview} alt="Vista previa" className="max-h-48 w-full rounded-md border object-contain" />
-          )}
-          {file && (
-            <p className="text-xs text-muted-foreground">
-              {file.name} · {(file.size / 1024).toFixed(0)} KB
-            </p>
+          {mode === "url" ? (
+            <>
+              <Input
+                type="url"
+                placeholder="https://ejemplo.com/imagen.jpg"
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+              />
+              {urlValid && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={urlInput.trim()}
+                  alt="Vista previa"
+                  className="max-h-48 w-full rounded-md border object-contain"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
+              )}
+            </>
+          ) : (
+            <>
+              <Input
+                ref={inputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="cursor-pointer"
+                onChange={handleFileChange}
+              />
+              {filePreview && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={filePreview} alt="Vista previa" className="max-h-48 w-full rounded-md border object-contain" />
+              )}
+              {file && (
+                <p className="text-xs text-muted-foreground">
+                  {file.name} · {(file.size / 1024).toFixed(0)} KB
+                </p>
+              )}
+            </>
           )}
         </div>
+
         <DialogFooter>
           <Button variant="outline" onClick={handleClose}>Cancelar</Button>
-          <Button disabled={!file || add.isPending} onClick={handleAdd}>
-            {add.isPending ? "Subiendo…" : "Subir imagen"}
+          <Button disabled={!canSubmit || busy} onClick={handleAdd}>
+            {busy ? "Guardando…" : "Agregar imagen"}
           </Button>
         </DialogFooter>
       </DialogContent>

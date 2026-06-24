@@ -130,6 +130,15 @@ export function useAddProductImage() {
   });
 }
 
+export function useAddProductImageUrl() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ productId, url }: { productId: string; url: string }) =>
+      api.post(`/v1/products/${productId}/images`, { url }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["my-products"] }),
+  });
+}
+
 export function useProduct(id: string) {
   return useQuery<Product & { seller_display_name: string }>({
     queryKey: ["product", id],

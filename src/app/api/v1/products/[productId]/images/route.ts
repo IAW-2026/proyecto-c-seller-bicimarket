@@ -33,8 +33,28 @@ export async function POST(
   }
 
   const contentType = request.headers.get("content-type") ?? "";
+  const nextPosition = product.images[0] ? product.images[0].position + 1 : 0;
+
+  // ── URL mode ──────────────────────────────────────────────────
+  if (contentType.includes("application/json")) {
+    const body = await request.json() as { url?: string; position?: number };
+    const url = body.url?.trim();
+    if (!url) return Errors.badRequest("url field is required");
+    try { new URL(url); } catch { return Errors.badRequest("Invalid URL"); }
+
+    const position = body.position != null ? Number(body.position) : nextPosition;
+    const image = await prisma.productImage.create({
+      data: { id: newId("img"), productId, url, position, ...(idempotencyKey && { idempotencyKey }) },
+    });
+    return Response.json(
+      { id: image.id, product_id: image.productId, url: image.url, position: image.position },
+      { status: 201 }
+    );
+  }
+
+  // ── File upload mode ──────────────────────────────────────────
   if (!contentType.includes("multipart/form-data")) {
-    return Errors.badRequest("Content-Type must be multipart/form-data");
+    return Errors.badRequest("Content-Type must be multipart/form-data or application/json");
   }
 
   const formData = await request.formData();
@@ -74,9 +94,7 @@ export async function POST(
     .getPublicUrl(storagePath);
 
   const position =
-    posField != null
-      ? parseInt(String(posField), 10)
-      : (product.images[0] ? product.images[0].position + 1 : 0);
+    posField != null ? parseInt(String(posField), 10) : nextPosition;
 
   const image = await prisma.productImage.create({
     data: {
