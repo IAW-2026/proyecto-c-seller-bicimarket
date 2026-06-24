@@ -9,12 +9,27 @@ export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const status = url.searchParams.get("status");
   const category = url.searchParams.get("category");
+  const search = url.searchParams.get("search")?.trim() || undefined;
+  const sort = url.searchParams.get("sort") ?? "newest";
   const { page, limit, skip } = getPaginationParams(request);
+
+  const orderBy =
+    sort === "title_asc"
+      ? { title: "asc" as const }
+      : sort === "title_desc"
+      ? { title: "desc" as const }
+      : { createdAt: "desc" as const };
 
   const where = {
     deletedAt: null,
     ...(status && { status: status as never }),
     ...(category && { category: category as never }),
+    ...(search && {
+      OR: [
+        { title: { contains: search, mode: "insensitive" as const } },
+        { brand: { contains: search, mode: "insensitive" as const } },
+      ],
+    }),
   };
 
   const [products, total] = await Promise.all([
@@ -23,7 +38,7 @@ export async function GET(request: NextRequest) {
       include: {
         sellerProfile: { select: { displayName: true } },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy,
       skip,
       take: limit,
     }),

@@ -27,6 +27,8 @@ type PaginatedProducts = {
 type Filters = {
   status?: string;
   category?: string;
+  search?: string;
+  sort?: string;
   page?: number;
 };
 
@@ -34,6 +36,8 @@ export function useAdminProducts(filters: Filters = {}) {
   const params = new URLSearchParams({ limit: "50" });
   if (filters.status) params.set("status", filters.status);
   if (filters.category) params.set("category", filters.category);
+  if (filters.search) params.set("search", filters.search);
+  if (filters.sort) params.set("sort", filters.sort);
   if (filters.page && filters.page > 1) params.set("page", String(filters.page));
 
   return useQuery<PaginatedProducts>({

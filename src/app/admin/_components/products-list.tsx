@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAdminProducts, type AdminProduct } from "@/hooks/use-admin-products";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -20,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ChevronLeft, ChevronRight, ImageIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, ImageIcon, Search } from "lucide-react";
 import { ProductImagesDialog } from "./product-images-dialog";
 
 // ── Label maps ────────────────────────────────────────────────
@@ -161,12 +162,29 @@ function ProductRow({
 export function AdminProductsList() {
   const [status, setStatus] = useState<string>("");
   const [category, setCategory] = useState<string>("");
+  const [sort, setSort] = useState<string>("newest");
+  const [searchInput, setSearchInput] = useState<string>("");
+  const [search, setSearch] = useState<string>("");
   const [page, setPage] = useState(1);
   const [imagesProduct, setImagesProduct] = useState<AdminProduct | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setSearch(searchInput.trim());
+      setPage(1);
+    }, 400);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [searchInput]);
 
   const { data, isLoading, error } = useAdminProducts({
     status: status || undefined,
     category: category || undefined,
+    search: search || undefined,
+    sort,
     page,
   });
 
@@ -180,6 +198,11 @@ export function AdminProductsList() {
     setPage(1);
   }
 
+  function handleSortChange(val: string | null) {
+    if (val) setSort(val);
+    setPage(1);
+  }
+
   const products = data?.data ?? [];
   const pagination = data?.pagination;
 
@@ -187,6 +210,16 @@ export function AdminProductsList() {
     <div className="space-y-3">
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="h-9 w-56 pl-8"
+            placeholder="Buscar por nombre o marca…"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+          />
+        </div>
+
         <Select value={status || "all"} onValueChange={handleStatusChange}>
           <SelectTrigger className="w-36">
             <SelectValue placeholder="Estado" />
@@ -214,6 +247,17 @@ export function AdminProductsList() {
             <SelectItem value="parts">Repuestos</SelectItem>
             <SelectItem value="accessories">Accesorios</SelectItem>
             <SelectItem value="indumentaria">Indumentaria</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={sort} onValueChange={handleSortChange}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Ordenar por" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="newest">Más reciente</SelectItem>
+            <SelectItem value="title_asc">Nombre A → Z</SelectItem>
+            <SelectItem value="title_desc">Nombre Z → A</SelectItem>
           </SelectContent>
         </Select>
 
