@@ -20,7 +20,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, ImageIcon } from "lucide-react";
+import { ProductImagesDialog } from "./product-images-dialog";
 
 // ── Label maps ────────────────────────────────────────────────
 
@@ -93,6 +94,7 @@ function SkeletonRows() {
           <TableCell><Skeleton className="h-5 w-20 rounded-full" /></TableCell>
           <TableCell><Skeleton className="h-4 w-28" /></TableCell>
           <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+          <TableCell className="text-right"><Skeleton className="ml-auto h-7 w-24" /></TableCell>
         </TableRow>
       ))}
     </>
@@ -101,7 +103,13 @@ function SkeletonRows() {
 
 // ── Row ───────────────────────────────────────────────────────
 
-function ProductRow({ product }: { product: AdminProduct }) {
+function ProductRow({
+  product,
+  onManageImages,
+}: {
+  product: AdminProduct;
+  onManageImages: (p: AdminProduct) => void;
+}) {
   return (
     <TableRow>
       <TableCell className="font-mono text-xs text-muted-foreground">
@@ -133,6 +141,17 @@ function ProductRow({ product }: { product: AdminProduct }) {
       <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
         {new Date(product.created_at).toLocaleDateString("es-AR")}
       </TableCell>
+      <TableCell className="text-right">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 gap-1"
+          onClick={() => onManageImages(product)}
+        >
+          <ImageIcon className="size-3.5" />
+          Imágenes
+        </Button>
+      </TableCell>
     </TableRow>
   );
 }
@@ -143,6 +162,7 @@ export function AdminProductsList() {
   const [status, setStatus] = useState<string>("");
   const [category, setCategory] = useState<string>("");
   const [page, setPage] = useState(1);
+  const [imagesProduct, setImagesProduct] = useState<AdminProduct | null>(null);
 
   const { data, isLoading, error } = useAdminProducts({
     status: status || undefined,
@@ -220,6 +240,7 @@ export function AdminProductsList() {
                 <TableHead>Estado</TableHead>
                 <TableHead>Vendedor</TableHead>
                 <TableHead>Alta</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -228,14 +249,16 @@ export function AdminProductsList() {
               ) : products.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={8}
+                    colSpan={9}
                     className="py-12 text-center text-sm text-muted-foreground"
                   >
                     No hay productos con los filtros seleccionados.
                   </TableCell>
                 </TableRow>
               ) : (
-                products.map((p) => <ProductRow key={p.id} product={p} />)
+                products.map((p) => (
+                  <ProductRow key={p.id} product={p} onManageImages={setImagesProduct} />
+                ))
               )}
             </TableBody>
           </Table>
@@ -270,6 +293,15 @@ export function AdminProductsList() {
           )}
         </div>
       )}
+
+      <ProductImagesDialog
+        productId={imagesProduct?.id ?? null}
+        productTitle={imagesProduct?.title ?? ""}
+        open={!!imagesProduct}
+        onOpenChange={(v) => {
+          if (!v) setImagesProduct(null);
+        }}
+      />
     </div>
   );
 }
